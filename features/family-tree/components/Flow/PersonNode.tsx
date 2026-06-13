@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { Pencil, Plus, Heart, Baby, Crown } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import type { PersonFlowNode } from '../../utils/layout'
 
 const genderStyles: Record<string, string> = {
@@ -22,20 +22,6 @@ const genderDot: Record<string, string> = {
 
 export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
   const { person, onEdit, onAddSpouse, onAddChild, onAddParent } = data
-
-  const [popoverOpen, setPopoverOpen] = useState(false)
-  const containerRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!popoverOpen) return
-    const handler = (e: MouseEvent) => {
-      if (!containerRef.current?.contains(e.target as Node)) {
-        setPopoverOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [popoverOpen])
 
   const birthYear = person.birthDate ? person.birthDate.slice(0, 4) : null
   const deathYear = person.deathDate ? person.deathDate.slice(0, 4) : null
@@ -95,8 +81,7 @@ export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
       </div>
 
       {/* Action row */}
-      <div ref={containerRef} className="nodrag relative mt-2 flex gap-1">
-        {/* Edit button */}
+      <div className="nodrag nopan mt-2 flex gap-1">
         <button
           onClick={() => onEdit(person.id)}
           className="flex h-6 w-6 items-center justify-center rounded-md border border-border bg-background/60 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -105,44 +90,35 @@ export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
           <Pencil className="size-3" />
         </button>
 
-        {/* Add / + button */}
-        <button
-          onClick={() => setPopoverOpen((v) => !v)}
-          className={cn(
-            'flex h-6 flex-1 items-center justify-center gap-1 rounded-md border border-border bg-background/60 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground',
-            popoverOpen && 'bg-muted text-foreground'
-          )}
-        >
-          <Plus className="size-3" />
-          Add
-        </button>
-
-        {/* Popover */}
-        {popoverOpen && (
-          <div className="nopan absolute bottom-full left-0 z-[1000] mb-1.5 w-44 overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-lg">
+        <Popover>
+          <PopoverTrigger className="flex h-6 flex-1 items-center justify-center gap-1 rounded-md border border-border bg-background/60 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+            <Plus className="size-3" />
+            Add
+          </PopoverTrigger>
+          <PopoverContent className="nodrag nopan w-44 p-1" side="top" align="start">
             <button
-              onClick={() => { onAddSpouse(person.id); setPopoverOpen(false) }}
-              className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+              onClick={() => onAddSpouse(person.id)}
+              className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
             >
               <Heart className="size-3.5 shrink-0 text-pink-400" />
               Add Partner
             </button>
             <button
-              onClick={() => { onAddChild(person.id); setPopoverOpen(false) }}
-              className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+              onClick={() => onAddChild(person.id)}
+              className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
             >
               <Baby className="size-3.5 shrink-0 text-blue-400" />
               Add Child
             </button>
             <button
-              onClick={() => { onAddParent(person.id); setPopoverOpen(false) }}
-              className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+              onClick={() => onAddParent(person.id)}
+              className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
             >
               <Crown className="size-3.5 shrink-0 text-amber-400" />
               Add Parent
             </button>
-          </div>
-        )}
+          </PopoverContent>
+        </Popover>
       </div>
     </div>
   )

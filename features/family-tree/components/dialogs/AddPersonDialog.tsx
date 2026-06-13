@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { DatePicker } from '@/components/ui/date-picker'
 import { useFamilyStore } from '../../hooks/useFamilyStore'
 import type { Person } from '../../types'
 
@@ -36,6 +37,13 @@ const schema = z.object({
 })
 
 type FormData = z.infer<typeof schema>
+
+const genderLabels: Record<string, string> = {
+  male: 'Male',
+  female: 'Female',
+  other: 'Other',
+  unknown: 'Unknown',
+}
 
 interface AddPersonDialogProps {
   open: boolean
@@ -154,9 +162,13 @@ export function AddPersonDialog({ open, onClose, editPerson }: AddPersonDialogPr
               name="gender"
               control={control}
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  itemToStringLabel={(v) => genderLabels[v as string] ?? v}
+                >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select gender" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="male">Male</SelectItem>
@@ -171,14 +183,38 @@ export function AddPersonDialog({ open, onClose, editPerson }: AddPersonDialogPr
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="birthDate">Birth Date</Label>
-              <Input id="birthDate" type="date" {...register('birthDate')} />
+              <Label>Birth Date</Label>
+              <Controller
+                name="birthDate"
+                control={control}
+                render={({ field }) => (
+                  <DatePicker
+                    value={field.value}
+                    onChange={field.onChange}
+                    placeholder="Birth date"
+                  />
+                )}
+              />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="deathDate">
-                Death Date {!isDeceased && <span className="text-muted-foreground">(optional)</span>}
+              <Label>
+                Death Date{' '}
+                {!isDeceased && (
+                  <span className="text-muted-foreground font-normal">(optional)</span>
+                )}
               </Label>
-              <Input id="deathDate" type="date" {...register('deathDate')} />
+              <Controller
+                name="deathDate"
+                control={control}
+                render={({ field }) => (
+                  <DatePicker
+                    value={field.value}
+                    onChange={field.onChange}
+                    placeholder="Death date"
+                    disabled={!isDeceased}
+                  />
+                )}
+              />
             </div>
           </div>
 

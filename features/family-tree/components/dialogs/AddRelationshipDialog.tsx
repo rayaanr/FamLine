@@ -13,7 +13,6 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -22,9 +21,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { DatePicker } from '@/components/ui/date-picker'
 import { useFamilyStore } from '../../hooks/useFamilyStore'
 
-// ─── Couple schema ─────────────────────────────────────────────────────────────
+// ─── Label maps ────────────────────────────────────────────────────────────────
+const statusLabels: Record<string, string> = {
+  married: 'Married',
+  partnered: 'Partnered',
+  divorced: 'Divorced',
+  separated: 'Separated',
+}
+
+const parentTypeLabels: Record<string, string> = {
+  couple: 'Couple (two parents)',
+  single: 'Single parent',
+}
+
+const relationshipTypeLabels: Record<string, string> = {
+  biological: 'Biological',
+  adopted: 'Adopted',
+  step: 'Step',
+}
+
+// ─── Schemas ───────────────────────────────────────────────────────────────────
 const coupleSchema = z
   .object({
     partner1Id: z.string().min(1, 'Select a person'),
@@ -40,7 +59,6 @@ const coupleSchema = z
 
 type CoupleFormData = z.infer<typeof coupleSchema>
 
-// ─── ParentChild schema ────────────────────────────────────────────────────────
 const parentChildSchema = z
   .object({
     childId: z.string().min(1, 'Select a child'),
@@ -63,11 +81,8 @@ interface AddRelationshipDialogProps {
   open: boolean
   onClose: () => void
   mode: 'couple' | 'parentChild'
-  // Couple mode: pre-fill one of the partner slots
   preselectedPartnerId?: string
-  // ParentChild mode: pre-fill the parent slot (person clicked "Add Child")
   preselectedParentId?: string
-  // ParentChild mode: pre-fill the child slot (person clicked "Add Parent")
   preselectedChildId?: string
 }
 
@@ -81,6 +96,13 @@ function CoupleForm({
 }) {
   const people = useFamilyStore((s) => s.people)
   const addCouple = useFamilyStore((s) => s.addCouple)
+
+  const personOptions = Object.values(people)
+
+  const personLabel = (id: string) => {
+    const p = people[id]
+    return p ? `${p.firstName} ${p.lastName}` : id
+  }
 
   const { handleSubmit, control, reset, register, formState: { errors } } =
     useForm<CoupleFormData>({
@@ -116,8 +138,6 @@ function CoupleForm({
     onClose()
   }
 
-  const personOptions = Object.values(people)
-
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       <div className="space-y-1.5">
@@ -126,7 +146,11 @@ function CoupleForm({
           name="partner1Id"
           control={control}
           render={({ field }) => (
-            <Select value={field.value} onValueChange={field.onChange}>
+            <Select
+              value={field.value}
+              onValueChange={field.onChange}
+              itemToStringLabel={personLabel}
+            >
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Select person..." />
               </SelectTrigger>
@@ -151,7 +175,11 @@ function CoupleForm({
           name="partner2Id"
           control={control}
           render={({ field }) => (
-            <Select value={field.value} onValueChange={field.onChange}>
+            <Select
+              value={field.value}
+              onValueChange={field.onChange}
+              itemToStringLabel={personLabel}
+            >
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Select person..." />
               </SelectTrigger>
@@ -176,7 +204,11 @@ function CoupleForm({
           name="status"
           control={control}
           render={({ field }) => (
-            <Select value={field.value} onValueChange={field.onChange}>
+            <Select
+              value={field.value}
+              onValueChange={field.onChange}
+              itemToStringLabel={(v) => statusLabels[v as string] ?? v}
+            >
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
@@ -193,12 +225,32 @@ function CoupleForm({
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label htmlFor="startDate">Start Date</Label>
-          <Input id="startDate" type="date" {...register('startDate')} />
+          <Label>Start Date</Label>
+          <Controller
+            name="startDate"
+            control={control}
+            render={({ field }) => (
+              <DatePicker
+                value={field.value}
+                onChange={field.onChange}
+                placeholder="Start date"
+              />
+            )}
+          />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="endDate">End Date</Label>
-          <Input id="endDate" type="date" {...register('endDate')} />
+          <Label>End Date</Label>
+          <Controller
+            name="endDate"
+            control={control}
+            render={({ field }) => (
+              <DatePicker
+                value={field.value}
+                onChange={field.onChange}
+                placeholder="End date"
+              />
+            )}
+          />
         </div>
       </div>
 
@@ -224,12 +276,28 @@ function ParentChildForm({
   const parentChildren = useFamilyStore((s) => s.parentChildren)
   const addParentChild = useFamilyStore((s) => s.addParentChild)
 
+  const personOptions = Object.values(people)
+  const coupleOptions = Object.values(couples)
+
+  const personLabel = (id: string) => {
+    const p = people[id]
+    return p ? `${p.firstName} ${p.lastName}` : id
+  }
+
+  const coupleLabel = (id: string) => {
+    const c = couples[id]
+    if (!c) return id
+    const p1 = people[c.partner1Id]
+    const p2 = people[c.partner2Id]
+    return `${p1 ? `${p1.firstName} ${p1.lastName}` : '?'} & ${p2 ? `${p2.firstName} ${p2.lastName}` : '?'}`
+  }
+
   const { handleSubmit, control, watch, reset, setError, formState: { errors } } =
     useForm<ParentChildFormData>({
       resolver: zodResolver(parentChildSchema),
       defaultValues: {
         childId: preselectedChildId ?? '',
-        parentType: 'couple',
+        parentType: preselectedParentId ? 'single' : 'couple',
         coupleId: '',
         singleParentId: preselectedParentId ?? '',
         type: 'biological',
@@ -269,9 +337,6 @@ function ParentChildForm({
     onClose()
   }
 
-  const personOptions = Object.values(people)
-  const coupleOptions = Object.values(couples)
-
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       <div className="space-y-1.5">
@@ -280,7 +345,11 @@ function ParentChildForm({
           name="childId"
           control={control}
           render={({ field }) => (
-            <Select value={field.value} onValueChange={field.onChange}>
+            <Select
+              value={field.value}
+              onValueChange={field.onChange}
+              itemToStringLabel={personLabel}
+            >
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Select child..." />
               </SelectTrigger>
@@ -305,7 +374,11 @@ function ParentChildForm({
           name="parentType"
           control={control}
           render={({ field }) => (
-            <Select value={field.value} onValueChange={field.onChange}>
+            <Select
+              value={field.value}
+              onValueChange={field.onChange}
+              itemToStringLabel={(v) => parentTypeLabels[v as string] ?? v}
+            >
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
@@ -325,21 +398,20 @@ function ParentChildForm({
             name="coupleId"
             control={control}
             render={({ field }) => (
-              <Select value={field.value} onValueChange={field.onChange}>
+              <Select
+                value={field.value}
+                onValueChange={field.onChange}
+                itemToStringLabel={coupleLabel}
+              >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select couple..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {coupleOptions.map((c) => {
-                    const p1 = people[c.partner1Id]
-                    const p2 = people[c.partner2Id]
-                    return (
-                      <SelectItem key={c.id} value={c.id}>
-                        {p1 ? `${p1.firstName} ${p1.lastName}` : 'Unknown'} &{' '}
-                        {p2 ? `${p2.firstName} ${p2.lastName}` : 'Unknown'}
-                      </SelectItem>
-                    )
-                  })}
+                  {coupleOptions.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {coupleLabel(c.id)}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             )}
@@ -357,7 +429,11 @@ function ParentChildForm({
             name="singleParentId"
             control={control}
             render={({ field }) => (
-              <Select value={field.value} onValueChange={field.onChange}>
+              <Select
+                value={field.value}
+                onValueChange={field.onChange}
+                itemToStringLabel={personLabel}
+              >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select parent..." />
                 </SelectTrigger>
@@ -380,7 +456,11 @@ function ParentChildForm({
           name="type"
           control={control}
           render={({ field }) => (
-            <Select value={field.value} onValueChange={field.onChange}>
+            <Select
+              value={field.value}
+              onValueChange={field.onChange}
+              itemToStringLabel={(v) => relationshipTypeLabels[v as string] ?? v}
+            >
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
