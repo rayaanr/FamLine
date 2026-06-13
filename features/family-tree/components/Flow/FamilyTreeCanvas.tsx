@@ -22,6 +22,7 @@ import { CoupleNode } from './CoupleNode'
 import { SpouseEdge } from './SpouseEdge'
 import { ParentChildEdge } from './ParentChildEdge'
 import { FamilyTreeToolbar } from '../Toolbar/FamilyTreeToolbar'
+import { FamilyTreeLegend } from '../Legend/FamilyTreeLegend'
 import { AddPersonDialog } from '../dialogs/AddPersonDialog'
 import { AddRelationshipDialog } from '../dialogs/AddRelationshipDialog'
 import type { Person } from '../../types'
@@ -140,6 +141,10 @@ export function FamilyTreeCanvas() {
           <FamilyTreeToolbar
             onAddPerson={() => setPersonDialog({ open: true })}
           />
+        </Panel>
+
+        <Panel position="top-right">
+          <FamilyTreeLegend />
         </Panel>
 
         {isEmpty && (
