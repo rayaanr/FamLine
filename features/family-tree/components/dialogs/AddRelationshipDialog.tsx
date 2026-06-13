@@ -63,40 +63,46 @@ interface AddRelationshipDialogProps {
   open: boolean
   onClose: () => void
   mode: 'couple' | 'parentChild'
-  preselectedPersonId?: string
+  // Couple mode: pre-fill one of the partner slots
+  preselectedPartnerId?: string
+  // ParentChild mode: pre-fill the parent slot (person clicked "Add Child")
+  preselectedParentId?: string
+  // ParentChild mode: pre-fill the child slot (person clicked "Add Parent")
+  preselectedChildId?: string
 }
 
 // ─── Couple form ───────────────────────────────────────────────────────────────
 function CoupleForm({
   onClose,
-  preselectedPersonId,
+  preselectedPartnerId,
 }: {
   onClose: () => void
-  preselectedPersonId?: string
+  preselectedPartnerId?: string
 }) {
   const people = useFamilyStore((s) => s.people)
   const addCouple = useFamilyStore((s) => s.addCouple)
 
-  const {
-    handleSubmit,
-    control,
-    reset,
-    formState: { errors },
-    register,
-  } = useForm<CoupleFormData>({
-    resolver: zodResolver(coupleSchema),
-    defaultValues: {
-      partner1Id: preselectedPersonId ?? '',
+  const { handleSubmit, control, reset, register, formState: { errors } } =
+    useForm<CoupleFormData>({
+      resolver: zodResolver(coupleSchema),
+      defaultValues: {
+        partner1Id: preselectedPartnerId ?? '',
+        partner2Id: '',
+        status: 'married',
+        startDate: '',
+        endDate: '',
+      },
+    })
+
+  useEffect(() => {
+    reset({
+      partner1Id: preselectedPartnerId ?? '',
       partner2Id: '',
       status: 'married',
       startDate: '',
       endDate: '',
-    },
-  })
-
-  useEffect(() => {
-    reset({ partner1Id: preselectedPersonId ?? '', partner2Id: '', status: 'married', startDate: '', endDate: '' })
-  }, [preselectedPersonId, reset])
+    })
+  }, [preselectedPartnerId, reset])
 
   const onSubmit = (data: CoupleFormData) => {
     addCouple({
@@ -206,58 +212,49 @@ function CoupleForm({
 // ─── ParentChild form ──────────────────────────────────────────────────────────
 function ParentChildForm({
   onClose,
-  preselectedPersonId,
+  preselectedParentId,
+  preselectedChildId,
 }: {
   onClose: () => void
-  preselectedPersonId?: string
+  preselectedParentId?: string
+  preselectedChildId?: string
 }) {
   const people = useFamilyStore((s) => s.people)
   const couples = useFamilyStore((s) => s.couples)
   const parentChildren = useFamilyStore((s) => s.parentChildren)
   const addParentChild = useFamilyStore((s) => s.addParentChild)
 
-  const {
-    handleSubmit,
-    control,
-    watch,
-    reset,
-    setError,
-    formState: { errors },
-  } = useForm<ParentChildFormData>({
-    resolver: zodResolver(parentChildSchema),
-    defaultValues: {
-      childId: '',
-      parentType: 'couple',
-      coupleId: '',
-      singleParentId: preselectedPersonId ?? '',
-      type: 'biological',
-    },
-  })
+  const { handleSubmit, control, watch, reset, setError, formState: { errors } } =
+    useForm<ParentChildFormData>({
+      resolver: zodResolver(parentChildSchema),
+      defaultValues: {
+        childId: preselectedChildId ?? '',
+        parentType: 'couple',
+        coupleId: '',
+        singleParentId: preselectedParentId ?? '',
+        type: 'biological',
+      },
+    })
 
   useEffect(() => {
     reset({
-      childId: '',
-      parentType: 'couple',
+      childId: preselectedChildId ?? '',
+      parentType: preselectedParentId ? 'single' : 'couple',
       coupleId: '',
-      singleParentId: preselectedPersonId ?? '',
+      singleParentId: preselectedParentId ?? '',
       type: 'biological',
     })
-  }, [preselectedPersonId, reset])
+  }, [preselectedParentId, preselectedChildId, reset])
 
   const parentType = watch('parentType')
-  const selectedType = watch('type')
-  const childId = watch('childId')
 
   const onSubmit = (data: ParentChildFormData) => {
-    // Enforce max 2 biological parents
     if (data.type === 'biological') {
       const existingBioParents = Object.values(parentChildren).filter(
         (pc) => pc.childId === data.childId && pc.type === 'biological'
       )
       if (existingBioParents.length >= 2) {
-        setError('type', {
-          message: 'A child can have at most 2 biological parents',
-        })
+        setError('type', { message: 'A child can have at most 2 biological parents' })
         return
       }
     }
@@ -338,13 +335,8 @@ function ParentChildForm({
                     const p2 = people[c.partner2Id]
                     return (
                       <SelectItem key={c.id} value={c.id}>
-                        {p1
-                          ? `${p1.firstName} ${p1.lastName}`
-                          : 'Unknown'}{' '}
-                        &{' '}
-                        {p2
-                          ? `${p2.firstName} ${p2.lastName}`
-                          : 'Unknown'}
+                        {p1 ? `${p1.firstName} ${p1.lastName}` : 'Unknown'} &{' '}
+                        {p2 ? `${p2.firstName} ${p2.lastName}` : 'Unknown'}
                       </SelectItem>
                     )
                   })}
@@ -417,21 +409,27 @@ export function AddRelationshipDialog({
   open,
   onClose,
   mode,
-  preselectedPersonId,
+  preselectedPartnerId,
+  preselectedParentId,
+  preselectedChildId,
 }: AddRelationshipDialogProps) {
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {mode === 'couple' ? 'Add Couple Relationship' : 'Add Parent-Child Relationship'}
+            {mode === 'couple' ? 'Add Partner Relationship' : 'Add Parent-Child Relationship'}
           </DialogTitle>
         </DialogHeader>
 
         {mode === 'couple' ? (
-          <CoupleForm onClose={onClose} preselectedPersonId={preselectedPersonId} />
+          <CoupleForm onClose={onClose} preselectedPartnerId={preselectedPartnerId} />
         ) : (
-          <ParentChildForm onClose={onClose} preselectedPersonId={preselectedPersonId} />
+          <ParentChildForm
+            onClose={onClose}
+            preselectedParentId={preselectedParentId}
+            preselectedChildId={preselectedChildId}
+          />
         )}
       </DialogContent>
     </Dialog>

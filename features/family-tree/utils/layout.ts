@@ -13,6 +13,7 @@ export interface PersonNodeData extends Record<string, unknown> {
   onEdit: (id: string) => void
   onAddSpouse: (id: string) => void
   onAddChild: (id: string) => void
+  onAddParent: (id: string) => void
 }
 
 export interface CoupleNodeData extends Record<string, unknown> {
@@ -37,6 +38,7 @@ export interface NodeCallbacks {
   onEditPerson: (id: string) => void
   onAddSpouse: (id: string) => void
   onAddChild: (id: string) => void
+  onAddParent: (id: string) => void
   onEditCouple: (id: string) => void
 }
 
@@ -153,6 +155,7 @@ export function buildGraphFromTree(
         onEdit: callbacks.onEditPerson,
         onAddSpouse: callbacks.onAddSpouse,
         onAddChild: callbacks.onAddChild,
+        onAddParent: callbacks.onAddParent,
       },
     })
   }

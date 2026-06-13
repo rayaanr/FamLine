@@ -1,21 +1,15 @@
 'use client'
 
 import { useReactFlow } from '@xyflow/react'
-import { UserPlus, Users, GitMerge, Maximize } from 'lucide-react'
+import { UserPlus, Maximize } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useFamilyStore } from '../../hooks/useFamilyStore'
 
 interface FamilyTreeToolbarProps {
   onAddPerson: () => void
-  onAddCouple: () => void
-  onAddParentChild: () => void
 }
 
-export function FamilyTreeToolbar({
-  onAddPerson,
-  onAddCouple,
-  onAddParentChild,
-}: FamilyTreeToolbarProps) {
+export function FamilyTreeToolbar({ onAddPerson }: FamilyTreeToolbarProps) {
   const { fitView } = useReactFlow()
   const personCount = useFamilyStore((s) => Object.keys(s.people).length)
 
@@ -24,18 +18,6 @@ export function FamilyTreeToolbar({
       <Button size="sm" onClick={onAddPerson} className="gap-1.5">
         <UserPlus className="size-3.5" />
         Add Person
-      </Button>
-
-      <div className="h-5 w-px bg-border" />
-
-      <Button size="sm" variant="outline" onClick={onAddCouple} className="gap-1.5">
-        <Users className="size-3.5" />
-        Couple
-      </Button>
-
-      <Button size="sm" variant="outline" onClick={onAddParentChild} className="gap-1.5">
-        <GitMerge className="size-3.5" />
-        Parent-Child
       </Button>
 
       <div className="h-5 w-px bg-border" />

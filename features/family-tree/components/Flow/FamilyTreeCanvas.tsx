@@ -37,56 +37,54 @@ const edgeTypes: EdgeTypes = {
   parentChild: ParentChildEdge as EdgeTypes[string],
 }
 
+type RelDialogState =
+  | { open: false }
+  | { open: true; mode: 'couple'; partnerId?: string }
+  | { open: true; mode: 'parentChild'; parentId?: string; childId?: string }
+
 export function FamilyTreeCanvas() {
   const hydrated = useHydration()
 
-  // Store selectors
   const people = useFamilyStore((s) => s.people)
   const couples = useFamilyStore((s) => s.couples)
   const parentChildren = useFamilyStore((s) => s.parentChildren)
 
-  // Dialog state
-  const [addPersonOpen, setAddPersonOpen] = useState(false)
-  const [editPerson, setEditPerson] = useState<Person | undefined>()
+  // Person dialog
+  const [personDialog, setPersonDialog] = useState<{ open: boolean; edit?: Person }>({ open: false })
 
-  const [addCoupleOpen, setAddCoupleOpen] = useState(false)
-  const [addParentChildOpen, setAddParentChildOpen] = useState(false)
-  const [preselectedPersonId, setPreselectedPersonId] = useState<string | undefined>()
+  // Relationship dialog — single state object covers all three entry points
+  const [relDialog, setRelDialog] = useState<RelDialogState>({ open: false })
 
-  // Stable callbacks for node actions
   const handleEditPerson = useCallback((id: string) => {
     const person = useFamilyStore.getState().people[id]
-    if (person) {
-      setEditPerson(person)
-      setAddPersonOpen(true)
-    }
+    if (person) setPersonDialog({ open: true, edit: person })
   }, [])
 
   const handleAddSpouse = useCallback((id: string) => {
-    setPreselectedPersonId(id)
-    setAddCoupleOpen(true)
+    setRelDialog({ open: true, mode: 'couple', partnerId: id })
   }, [])
 
   const handleAddChild = useCallback((id: string) => {
-    setPreselectedPersonId(id)
-    setAddParentChildOpen(true)
+    setRelDialog({ open: true, mode: 'parentChild', parentId: id })
   }, [])
 
-  const handleEditCouple = useCallback((_id: string) => {
-    // Future: open edit couple dialog
+  const handleAddParent = useCallback((id: string) => {
+    setRelDialog({ open: true, mode: 'parentChild', childId: id })
   }, [])
+
+  const handleEditCouple = useCallback((_id: string) => {}, [])
 
   const callbacks: NodeCallbacks = useMemo(
     () => ({
       onEditPerson: handleEditPerson,
       onAddSpouse: handleAddSpouse,
       onAddChild: handleAddChild,
+      onAddParent: handleAddParent,
       onEditCouple: handleEditCouple,
     }),
-    [handleEditPerson, handleAddSpouse, handleAddChild, handleEditCouple]
+    [handleEditPerson, handleAddSpouse, handleAddChild, handleAddParent, handleEditCouple]
   )
 
-  // Build layout from store data
   const { nodes: layoutNodes, edges: layoutEdges } = useMemo(
     () => buildGraphFromTree({ people, couples, parentChildren }, callbacks),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -96,14 +94,8 @@ export function FamilyTreeCanvas() {
   const [nodes, setNodes, onNodesChange] = useNodesState(layoutNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(layoutEdges)
 
-  // Sync layout changes back into React Flow state
-  useEffect(() => {
-    setNodes(layoutNodes)
-  }, [layoutNodes, setNodes])
-
-  useEffect(() => {
-    setEdges(layoutEdges)
-  }, [layoutEdges, setEdges])
+  useEffect(() => { setNodes(layoutNodes) }, [layoutNodes, setNodes])
+  useEffect(() => { setEdges(layoutEdges) }, [layoutEdges, setEdges])
 
   const isEmpty = Object.keys(people).length === 0
 
@@ -146,18 +138,7 @@ export function FamilyTreeCanvas() {
 
         <Panel position="top-left">
           <FamilyTreeToolbar
-            onAddPerson={() => {
-              setEditPerson(undefined)
-              setAddPersonOpen(true)
-            }}
-            onAddCouple={() => {
-              setPreselectedPersonId(undefined)
-              setAddCoupleOpen(true)
-            }}
-            onAddParentChild={() => {
-              setPreselectedPersonId(undefined)
-              setAddParentChildOpen(true)
-            }}
+            onAddPerson={() => setPersonDialog({ open: true })}
           />
         </Panel>
 
@@ -174,26 +155,24 @@ export function FamilyTreeCanvas() {
       </ReactFlow>
 
       <AddPersonDialog
-        open={addPersonOpen}
-        onClose={() => {
-          setAddPersonOpen(false)
-          setEditPerson(undefined)
-        }}
-        editPerson={editPerson}
+        open={personDialog.open}
+        onClose={() => setPersonDialog({ open: false })}
+        editPerson={personDialog.edit}
       />
 
       <AddRelationshipDialog
-        open={addCoupleOpen}
-        onClose={() => setAddCoupleOpen(false)}
+        open={relDialog.open && relDialog.mode === 'couple'}
+        onClose={() => setRelDialog({ open: false })}
         mode="couple"
-        preselectedPersonId={preselectedPersonId}
+        preselectedPartnerId={relDialog.open && relDialog.mode === 'couple' ? relDialog.partnerId : undefined}
       />
 
       <AddRelationshipDialog
-        open={addParentChildOpen}
-        onClose={() => setAddParentChildOpen(false)}
+        open={relDialog.open && relDialog.mode === 'parentChild'}
+        onClose={() => setRelDialog({ open: false })}
         mode="parentChild"
-        preselectedPersonId={preselectedPersonId}
+        preselectedParentId={relDialog.open && relDialog.mode === 'parentChild' ? relDialog.parentId : undefined}
+        preselectedChildId={relDialog.open && relDialog.mode === 'parentChild' ? relDialog.childId : undefined}
       />
     </>
   )
