@@ -6,6 +6,9 @@ import type { FamilyTree, Person, Couple, ParentChild } from '../types'
 import { buildMockFamily } from '../utils/mockData'
 
 interface FamilyStoreState extends FamilyTree {
+  // Node ids (`couple-<id>` / `person-<id>`) whose descendants are collapsed.
+  // View state, but persisted so the view survives reloads.
+  collapsed: string[]
   addPerson: (person: Person) => void
   updatePerson: (id: string, updates: Partial<Person>) => void
   removePerson: (id: string) => void
@@ -14,6 +17,8 @@ interface FamilyStoreState extends FamilyTree {
   removeCouple: (id: string) => void
   addParentChild: (relation: ParentChild) => void
   removeParentChild: (id: string) => void
+  toggleCollapse: (nodeId: string) => void
+  expandAll: () => void
   clearTree: () => void
   loadMockData: () => void
 }
@@ -24,6 +29,7 @@ export const useFamilyStore = create<FamilyStoreState>()(
       people: {},
       couples: {},
       parentChildren: {},
+      collapsed: [],
 
       addPerson: (person) =>
         set((s) => ({ people: { ...s.people, [person.id]: person } })),
@@ -86,9 +92,19 @@ export const useFamilyStore = create<FamilyStoreState>()(
           return { parentChildren }
         }),
 
-      clearTree: () => set({ people: {}, couples: {}, parentChildren: {} }),
+      toggleCollapse: (nodeId) =>
+        set((s) => ({
+          collapsed: s.collapsed.includes(nodeId)
+            ? s.collapsed.filter((id) => id !== nodeId)
+            : [...s.collapsed, nodeId],
+        })),
 
-      loadMockData: () => set(buildMockFamily()),
+      expandAll: () => set({ collapsed: [] }),
+
+      clearTree: () =>
+        set({ people: {}, couples: {}, parentChildren: {}, collapsed: [] }),
+
+      loadMockData: () => set({ ...buildMockFamily(), collapsed: [] }),
     }),
     {
       name: 'famline-tree',

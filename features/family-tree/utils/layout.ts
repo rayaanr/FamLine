@@ -22,11 +22,20 @@ export interface PersonNodeData extends Record<string, unknown> {
   onAddSpouse: (id: string) => void
   onAddChild: (id: string) => void
   onAddParent: (id: string) => void
+  // Set only for single parents who have children (collapse-by-person).
+  isCollapsed?: boolean
+  hiddenCount?: number
+  hasChildren?: boolean
+  onToggleCollapse?: (nodeId: string) => void
 }
 
 export interface CoupleNodeData extends Record<string, unknown> {
   couple: Couple
   onEdit: (id: string) => void
+  isCollapsed: boolean
+  hiddenCount: number
+  hasChildren: boolean
+  onToggleCollapse: (nodeId: string) => void
 }
 
 export type PersonFlowNode = Node<PersonNodeData, 'person'>
@@ -48,6 +57,7 @@ export interface NodeCallbacks {
   onAddChild: (id: string) => void
   onAddParent: (id: string) => void
   onEditCouple: (id: string) => void
+  onToggleCollapse: (nodeId: string) => void
 }
 
 interface Point {
@@ -57,7 +67,8 @@ interface Point {
 
 export function buildGraphFromTree(
   tree: FamilyTree,
-  callbacks: NodeCallbacks
+  callbacks: NodeCallbacks,
+  collapsed: Set<string> = new Set()
 ): { nodes: AppNode[]; edges: AppEdge[] } {
   const { people, couples, parentChildren } = tree
 
@@ -94,6 +105,47 @@ export function buildGraphFromTree(
   const isParentless = (id: string) => !childHasParents.has(id)
   const otherPartner = (couple: Couple, id: string) =>
     couple.partner1Id === id ? couple.partner2Id : couple.partner1Id
+
+  // ── Collapse: a collapsed point lays out as a leaf (no descendants) ──────────
+  const coupleCollapsed = (coupleId: string) => collapsed.has(`couple-${coupleId}`)
+  const personCollapsed = (personId: string) => collapsed.has(`person-${personId}`)
+  const visibleChildrenOf = (coupleId: string) =>
+    coupleCollapsed(coupleId) ? [] : childrenOf(coupleId)
+  const visibleSoleChildrenOf = (personId: string) =>
+    personCollapsed(personId) ? [] : soleChildrenOf(personId)
+
+  // Number of people hidden when a branch is collapsed (the whole subtree below
+  // it). Walks the raw maps; `seen` guards against the rare shared-descendant DAG.
+  const countCoupleDescendants = (coupleId: string, seen: Set<string>): number => {
+    let n = 0
+    for (const childId of childrenOf(coupleId)) {
+      if (seen.has(childId)) continue
+      seen.add(childId)
+      n += 1
+      for (const cid of couplesOf(childId)) {
+        const spouse = otherPartner(couples[cid], childId)
+        if (!seen.has(spouse)) { seen.add(spouse); n += 1 }
+        n += countCoupleDescendants(cid, seen)
+      }
+      n += countPersonDescendants(childId, seen)
+    }
+    return n
+  }
+  const countPersonDescendants = (personId: string, seen: Set<string>): number => {
+    let n = 0
+    for (const childId of soleChildrenOf(personId)) {
+      if (seen.has(childId)) continue
+      seen.add(childId)
+      n += 1
+      for (const cid of couplesOf(childId)) {
+        const spouse = otherPartner(couples[cid], childId)
+        if (!seen.has(spouse)) { seen.add(spouse); n += 1 }
+        n += countCoupleDescendants(cid, seen)
+      }
+      n += countPersonDescendants(childId, seen)
+    }
+    return n
+  }
 
   // ── Generations via constraint relaxation ──────────────────────────────────
   // Two constraints, relaxed until stable:
@@ -162,14 +214,14 @@ export function buildGraphFromTree(
     widthMemo.set(id, PERSON_W) // break cycles defensively
 
     const couples = couplesOf(id)
-    const soleKids = soleChildrenOf(id)
+    const soleKids = visibleSoleChildrenOf(id)
 
     let width: number
 
     if (couples.length === 0) {
       width = soleKids.length ? Math.max(PERSON_W, bandWidth(soleKids)) : PERSON_W
     } else if (couples.length === 1) {
-      const band = bandWidth(childrenOf(couples[0]))
+      const band = bandWidth(visibleChildrenOf(couples[0]))
       const topRow = 2 * PERSON_W + 2 * SPOUSE_GAP + COUPLE_W
       width = Math.max(band, topRow)
     } else {
@@ -180,7 +232,7 @@ export function buildGraphFromTree(
         couples.length * SPOUSE_GAP +
         Math.max(0, couples.length - 1) * COUPLE_W
       const groups = couples
-        .map((cid) => bandWidth(childrenOf(cid)))
+        .map((cid) => bandWidth(visibleChildrenOf(cid)))
         .filter((w) => w > 0)
       const kidsTotal =
         groups.reduce((a, b) => a + b, 0) +
@@ -205,7 +257,7 @@ export function buildGraphFromTree(
     const width = measure(id)
     const center = leftX + width / 2
     const couples = couplesOf(id)
-    const soleKids = soleChildrenOf(id)
+    const soleKids = visibleSoleChildrenOf(id)
 
     const placeBand = (ids: string[], bandLeftX: number) => {
       let cursor = bandLeftX
@@ -228,7 +280,7 @@ export function buildGraphFromTree(
       const spouse = otherPartner(tree.couples[couple], id)
       placed.add(spouse)
 
-      const kids = childrenOf(couple)
+      const kids = visibleChildrenOf(couple)
       const bw = bandWidth(kids)
       if (kids.length) placeBand(kids, center - bw / 2)
 
@@ -259,7 +311,7 @@ export function buildGraphFromTree(
       // All children form one band centered under the person, grouped by couple
       // so each couple node sits above its own kids.
       const groups = couples
-        .map((cid) => ({ kids: childrenOf(cid), w: bandWidth(childrenOf(cid)) }))
+        .map((cid) => ({ kids: visibleChildrenOf(cid), w: bandWidth(visibleChildrenOf(cid)) }))
         .filter((g) => g.kids.length)
       const kidsTotal =
         groups.reduce((a, g) => a + g.w, 0) +
@@ -280,6 +332,14 @@ export function buildGraphFromTree(
     return width
   }
 
+  // Everyone living below a collapsed point — they must not be placed at all
+  // (otherwise the safety net below would re-add them as stray roots).
+  const hidden = new Set<string>()
+  for (const key of collapsed) {
+    if (key.startsWith('couple-')) countCoupleDescendants(key.slice('couple-'.length), hidden)
+    else if (key.startsWith('person-')) countPersonDescendants(key.slice('person-'.length), hidden)
+  }
+
   // ── Choose roots & run placement ────────────────────────────────────────────
   // Founding couples (both partners parentless) anchor whole trees; descend
   // from one partner so the other is placed as a spouse.
@@ -292,12 +352,13 @@ export function buildGraphFromTree(
   }
   // Remaining parentless people: single founders, or spouses not yet reached.
   for (const id of Object.keys(people)) {
-    if (placed.has(id) || !isParentless(id)) continue
+    if (placed.has(id) || hidden.has(id) || !isParentless(id)) continue
     rootCursor += place(id, rootCursor) + ROOT_GAP
   }
-  // Safety net for anything left (cycles, orphaned records).
+  // Safety net for anything left (cycles, orphaned records) — but never resurrect
+  // people hidden inside a collapsed branch.
   for (const id of Object.keys(people)) {
-    if (placed.has(id)) continue
+    if (placed.has(id) || hidden.has(id)) continue
     rootCursor += place(id, rootCursor) + ROOT_GAP
   }
 
@@ -306,16 +367,25 @@ export function buildGraphFromTree(
   const edges: AppEdge[] = []
 
   for (const person of Object.values(people)) {
+    const pos = personPos.get(person.id)
+    if (!pos) continue // hidden inside a collapsed branch
+    const hasSoleKids = soleChildrenOf(person.id).length > 0
     nodes.push({
       id: `person-${person.id}`,
       type: 'person',
-      position: personPos.get(person.id) ?? { x: 0, y: 0 },
+      position: pos,
       data: {
         person,
         onEdit: callbacks.onEditPerson,
         onAddSpouse: callbacks.onAddSpouse,
         onAddChild: callbacks.onAddChild,
         onAddParent: callbacks.onAddParent,
+        hasChildren: hasSoleKids,
+        isCollapsed: personCollapsed(person.id),
+        hiddenCount: hasSoleKids
+          ? countPersonDescendants(person.id, new Set([person.id]))
+          : 0,
+        onToggleCollapse: callbacks.onToggleCollapse,
       },
     })
   }
@@ -323,11 +393,19 @@ export function buildGraphFromTree(
   for (const couple of Object.values(couples)) {
     const pos = couplePos.get(couple.id)
     if (!pos) continue
+    const hasKids = childrenOf(couple.id).length > 0
     nodes.push({
       id: `couple-${couple.id}`,
       type: 'couple',
       position: pos,
-      data: { couple, onEdit: callbacks.onEditCouple },
+      data: {
+        couple,
+        onEdit: callbacks.onEditCouple,
+        hasChildren: hasKids,
+        isCollapsed: coupleCollapsed(couple.id),
+        hiddenCount: hasKids ? countCoupleDescendants(couple.id, new Set()) : 0,
+        onToggleCollapse: callbacks.onToggleCollapse,
+      },
     })
 
     // Connect each partner to the couple node from whichever side they sit on.
@@ -357,6 +435,7 @@ export function buildGraphFromTree(
   }
 
   for (const pc of Object.values(parentChildren)) {
+    if (!personPos.has(pc.childId)) continue // child is inside a collapsed branch
     if (pc.coupleId && couples[pc.coupleId]) {
       edges.push({
         id: `parentchild-${pc.id}`,

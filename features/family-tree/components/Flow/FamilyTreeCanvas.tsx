@@ -49,6 +49,10 @@ export function FamilyTreeCanvas() {
   const people = useFamilyStore((s) => s.people)
   const couples = useFamilyStore((s) => s.couples)
   const parentChildren = useFamilyStore((s) => s.parentChildren)
+  const collapsedList = useFamilyStore((s) => s.collapsed)
+  const toggleCollapse = useFamilyStore((s) => s.toggleCollapse)
+
+  const collapsed = useMemo(() => new Set(collapsedList), [collapsedList])
 
   // Person dialog
   const [personDialog, setPersonDialog] = useState<{ open: boolean; edit?: Person }>({ open: false })
@@ -82,14 +86,15 @@ export function FamilyTreeCanvas() {
       onAddChild: handleAddChild,
       onAddParent: handleAddParent,
       onEditCouple: handleEditCouple,
+      onToggleCollapse: toggleCollapse,
     }),
-    [handleEditPerson, handleAddSpouse, handleAddChild, handleAddParent, handleEditCouple]
+    [handleEditPerson, handleAddSpouse, handleAddChild, handleAddParent, handleEditCouple, toggleCollapse]
   )
 
   const { nodes: layoutNodes, edges: layoutEdges } = useMemo(
-    () => buildGraphFromTree({ people, couples, parentChildren }, callbacks),
+    () => buildGraphFromTree({ people, couples, parentChildren }, callbacks, collapsed),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [people, couples, parentChildren]
+    [people, couples, parentChildren, collapsed]
   )
 
   const [nodes, setNodes, onNodesChange] = useNodesState(layoutNodes)

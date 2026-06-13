@@ -1,7 +1,7 @@
 'use client'
 
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { Pencil, Plus, Heart, Baby, Crown } from 'lucide-react'
+import { Pencil, Plus, Heart, Baby, Crown, Minus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import type { PersonFlowNode } from '../../utils/layout'
@@ -21,7 +21,10 @@ const genderDot: Record<string, string> = {
 }
 
 export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
-  const { person, onEdit, onAddSpouse, onAddChild, onAddParent } = data
+  const {
+    person, onEdit, onAddSpouse, onAddChild, onAddParent,
+    hasChildren, isCollapsed, hiddenCount, onToggleCollapse,
+  } = data
 
   const birthYear = person.birthDate ? person.birthDate.slice(0, 4) : null
   const deathYear = person.deathDate ? person.deathDate.slice(0, 4) : null
@@ -34,7 +37,7 @@ export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
   return (
     <div
       className={cn(
-        'relative w-[200px] rounded-xl border-2 bg-card px-3 py-2 shadow-sm transition-shadow hover:shadow-md',
+        'relative w-50 rounded-xl border-2 bg-card px-3 py-2 shadow-sm transition-shadow hover:shadow-md',
         genderStyles[person.gender],
         person.isDeceased && 'opacity-60'
       )}
@@ -43,25 +46,25 @@ export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
         type="target"
         position={Position.Top}
         id="top"
-        className="!bg-slate-400 !w-2.5 !h-2.5 !border-background !border-2"
+        className="bg-slate-400! size-2.5! border-background! border-2!"
       />
       <Handle
         type="target"
         position={Position.Left}
         id="spouse-left"
-        className="!bg-slate-400 !w-2.5 !h-2.5 !border-background !border-2"
+        className="bg-slate-400! size-2.5! border-background! border-2!"
       />
       <Handle
         type="source"
         position={Position.Right}
         id="spouse-right"
-        className="!bg-slate-400 !w-2.5 !h-2.5 !border-background !border-2"
+        className="bg-slate-400! size-2.5! border-background! border-2!"
       />
       <Handle
         type="source"
         position={Position.Bottom}
         id="bottom"
-        className="!bg-slate-400 !w-2.5 !h-2.5 !border-background !border-2"
+        className="bg-slate-400! size-2.5! border-background! border-2!"
       />
 
       {/* Person info */}
@@ -120,6 +123,32 @@ export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
           </PopoverContent>
         </Popover>
       </div>
+
+      {/* Collapse / expand a single parent's descendants */}
+      {hasChildren && onToggleCollapse && (
+        <button
+          className={cn(
+            'nodrag nopan absolute -bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold leading-none shadow-sm transition-colors',
+            isCollapsed
+              ? 'border-primary/40 bg-primary/10 text-primary hover:bg-primary/20'
+              : 'border-border bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground'
+          )}
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggleCollapse(`person-${person.id}`)
+          }}
+          title={isCollapsed ? `Show ${hiddenCount} hidden` : 'Hide descendants'}
+        >
+          {isCollapsed ? (
+            <>
+              <Plus className="size-2.5" />
+              {hiddenCount}
+            </>
+          ) : (
+            <Minus className="size-2.5" />
+          )}
+        </button>
+      )}
     </div>
   )
 }
