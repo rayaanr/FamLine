@@ -34,4 +34,14 @@ export interface FamilyTree {
   people: Record<string, Person>
   couples: Record<string, Couple>
   parentChildren: Record<string, ParentChild>
+  // Node ids (`couple-<id>` / `person-<id>`) whose descendants are collapsed.
+  collapsed: string[]
+}
+
+/** A named, identifiable family tree. The app can hold many of these. */
+export interface NamedFamilyTree extends FamilyTree {
+  id: string
+  name: string
+  createdAt: string
+  updatedAt: string
 }

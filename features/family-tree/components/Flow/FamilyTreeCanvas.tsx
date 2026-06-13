@@ -10,11 +10,12 @@ import {
   Panel,
   useNodesState,
   useEdgesState,
+  useReactFlow,
   type NodeTypes,
   type EdgeTypes,
 } from '@xyflow/react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useFamilyStore } from '../../hooks/useFamilyStore'
+import { useFamilyStore, useActiveTree, getActiveTree } from '../../hooks/useFamilyStore'
 import { useHydration } from '../../hooks/useHydration'
 import { buildGraphFromTree, type NodeCallbacks } from '../../utils/layout'
 import { PersonNode } from './PersonNode'
@@ -38,6 +39,17 @@ const edgeTypes: EdgeTypes = {
   parentChild: ParentChildEdge as EdgeTypes[string],
 }
 
+// Re-fits the view whenever the active tree changes. Must render inside
+// <ReactFlow> so useReactFlow() has its provider.
+function FitOnTreeChange({ treeId }: { treeId: string }) {
+  const { fitView } = useReactFlow()
+  useEffect(() => {
+    const t = setTimeout(() => fitView({ duration: 400, padding: 0.2 }), 60)
+    return () => clearTimeout(t)
+  }, [treeId, fitView])
+  return null
+}
+
 type RelDialogState =
   | { open: false }
   | { open: true; mode: 'couple'; partnerId?: string }
@@ -46,10 +58,8 @@ type RelDialogState =
 export function FamilyTreeCanvas() {
   const hydrated = useHydration()
 
-  const people = useFamilyStore((s) => s.people)
-  const couples = useFamilyStore((s) => s.couples)
-  const parentChildren = useFamilyStore((s) => s.parentChildren)
-  const collapsedList = useFamilyStore((s) => s.collapsed)
+  const tree = useActiveTree()
+  const { people, couples, parentChildren, collapsed: collapsedList } = tree
   const toggleCollapse = useFamilyStore((s) => s.toggleCollapse)
 
   const collapsed = useMemo(() => new Set(collapsedList), [collapsedList])
@@ -61,7 +71,7 @@ export function FamilyTreeCanvas() {
   const [relDialog, setRelDialog] = useState<RelDialogState>({ open: false })
 
   const handleEditPerson = useCallback((id: string) => {
-    const person = useFamilyStore.getState().people[id]
+    const person = getActiveTree().people[id]
     if (person) setPersonDialog({ open: true, edit: person })
   }, [])
 
@@ -92,7 +102,7 @@ export function FamilyTreeCanvas() {
   )
 
   const { nodes: layoutNodes, edges: layoutEdges } = useMemo(
-    () => buildGraphFromTree({ people, couples, parentChildren }, callbacks, collapsed),
+    () => buildGraphFromTree(tree, callbacks, collapsed),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [people, couples, parentChildren, collapsed]
   )
@@ -128,6 +138,7 @@ export function FamilyTreeCanvas() {
         maxZoom={2}
         deleteKeyCode={null}
       >
+        <FitOnTreeChange treeId={tree.id} />
         <Background />
         <Controls />
         <MiniMap

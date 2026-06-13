@@ -1,9 +1,10 @@
 'use client'
 
 import { useReactFlow } from '@xyflow/react'
-import { UserPlus, Maximize, FlaskConical, Trash2, Expand } from 'lucide-react'
+import Link from 'next/link'
+import { UserPlus, Maximize, FlaskConical, Trash2, Expand, ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useFamilyStore } from '../../hooks/useFamilyStore'
+import { useFamilyStore, useActiveTree } from '../../hooks/useFamilyStore'
 
 interface FamilyTreeToolbarProps {
   onAddPerson: () => void
@@ -11,14 +12,29 @@ interface FamilyTreeToolbarProps {
 
 export function FamilyTreeToolbar({ onAddPerson }: FamilyTreeToolbarProps) {
   const { fitView } = useReactFlow()
-  const personCount = useFamilyStore((s) => Object.keys(s.people).length)
-  const collapsedCount = useFamilyStore((s) => s.collapsed.length)
+  const tree = useActiveTree()
+  const personCount = Object.keys(tree.people).length
+  const collapsedCount = tree.collapsed.length
   const loadMockData = useFamilyStore((s) => s.loadMockData)
   const clearTree = useFamilyStore((s) => s.clearTree)
   const expandAll = useFamilyStore((s) => s.expandAll)
 
   return (
     <div className="flex items-center gap-2 rounded-xl border border-border bg-background/90 p-2 shadow-sm backdrop-blur-sm">
+      <Button
+        variant="ghost"
+        size="sm"
+        nativeButton={false}
+        className="gap-1.5 text-muted-foreground"
+        title="Back to all trees"
+        render={<Link href="/tree" />}
+      >
+        <ArrowLeft className="size-3.5" />
+        All trees
+      </Button>
+
+      <div className="h-5 w-px bg-border" />
+
       <Button size="sm" onClick={onAddPerson} className="gap-1.5">
         <UserPlus className="size-3.5" />
         Add Person
@@ -34,7 +50,6 @@ export function FamilyTreeToolbar({ onAddPerson }: FamilyTreeToolbarProps) {
         title="Load demo family"
       >
         <FlaskConical className="size-3.5" />
-        Load Demo
       </Button>
 
       {personCount > 0 && (

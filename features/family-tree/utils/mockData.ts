@@ -60,7 +60,7 @@ interface CoupleSeed {
  * but some have 7–10. Growth is capped per generation so the tree stays a clean,
  * renderable hierarchy rather than exploding combinatorially.
  */
-export function buildMockFamily(): FamilyTree {
+export function buildMockFamily(): Omit<FamilyTree, 'collapsed'> {
   const rand = mulberry32(0x5a3c91)
 
   const people: Record<string, Person> = {}

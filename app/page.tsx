@@ -11,7 +11,7 @@ export default function Home() {
         href="/tree"
         className="inline-flex h-10 items-center justify-center rounded-lg bg-primary px-6 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/80"
       >
-        Open Family Tree
+        Open Family Trees
       </Link>
     </div>
   )

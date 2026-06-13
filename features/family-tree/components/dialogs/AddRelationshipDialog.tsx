@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { DatePicker } from '@/components/ui/date-picker'
-import { useFamilyStore } from '../../hooks/useFamilyStore'
+import { useFamilyStore, useActiveTree } from '../../hooks/useFamilyStore'
 
 // ─── Label maps ────────────────────────────────────────────────────────────────
 const statusLabels: Record<string, string> = {
@@ -94,7 +94,7 @@ function CoupleForm({
   onClose: () => void
   preselectedPartnerId?: string
 }) {
-  const people = useFamilyStore((s) => s.people)
+  const people = useActiveTree().people
   const addCouple = useFamilyStore((s) => s.addCouple)
 
   const personOptions = Object.values(people)
@@ -271,9 +271,7 @@ function ParentChildForm({
   preselectedParentId?: string
   preselectedChildId?: string
 }) {
-  const people = useFamilyStore((s) => s.people)
-  const couples = useFamilyStore((s) => s.couples)
-  const parentChildren = useFamilyStore((s) => s.parentChildren)
+  const { people, couples, parentChildren } = useActiveTree()
   const addParentChild = useFamilyStore((s) => s.addParentChild)
 
   const personOptions = Object.values(people)

@@ -1,14 +1,14 @@
 import type { Metadata } from 'next'
-import { FamilyTreeCanvas } from '@/features/family-tree'
+import { TreeGallery } from '@/features/family-tree'
 
 export const metadata: Metadata = {
-  title: 'FamLine — Family Tree',
+  title: 'FamLine — Your Family Trees',
 }
 
 export default function TreePage() {
   return (
-    <div className="h-screen w-screen overflow-hidden">
-      <FamilyTreeCanvas />
+    <div className="min-h-screen bg-background">
+      <TreeGallery />
     </div>
   )
 }
