@@ -3,6 +3,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { FamilyTree, Person, Couple, ParentChild } from '../types'
+import { buildMockFamily } from '../utils/mockData'
 
 interface FamilyStoreState extends FamilyTree {
   addPerson: (person: Person) => void
@@ -13,6 +14,8 @@ interface FamilyStoreState extends FamilyTree {
   removeCouple: (id: string) => void
   addParentChild: (relation: ParentChild) => void
   removeParentChild: (id: string) => void
+  clearTree: () => void
+  loadMockData: () => void
 }
 
 export const useFamilyStore = create<FamilyStoreState>()(
@@ -82,6 +85,10 @@ export const useFamilyStore = create<FamilyStoreState>()(
           const { [id]: _r, ...parentChildren } = s.parentChildren
           return { parentChildren }
         }),
+
+      clearTree: () => set({ people: {}, couples: {}, parentChildren: {} }),
+
+      loadMockData: () => set(buildMockFamily()),
     }),
     {
       name: 'famline-tree',

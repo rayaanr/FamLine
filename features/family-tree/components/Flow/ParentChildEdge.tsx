@@ -1,6 +1,6 @@
 'use client'
 
-import { getBezierPath, BaseEdge, type EdgeProps } from '@xyflow/react'
+import { getSmoothStepPath, BaseEdge, type EdgeProps } from '@xyflow/react'
 import type { ParentChildFlowEdge } from '../../utils/layout'
 
 const edgeStyles: Record<string, React.CSSProperties> = {
@@ -20,13 +20,16 @@ export function ParentChildEdge({
   data,
   markerEnd,
 }: EdgeProps<ParentChildFlowEdge>) {
-  const [edgePath] = getBezierPath({
+  // Orthogonal routing: drop from the couple, run along a shared horizontal
+  // "bus", then drop into each child — the classic family-tree look.
+  const [edgePath] = getSmoothStepPath({
     sourceX,
     sourceY,
     sourcePosition,
     targetX,
     targetY,
     targetPosition,
+    borderRadius: 8,
   })
 
   const style = edgeStyles[data?.type ?? 'biological']
