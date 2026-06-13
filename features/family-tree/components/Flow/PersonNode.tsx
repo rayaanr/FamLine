@@ -1,8 +1,13 @@
 'use client'
 
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { Pencil, Plus, Heart, Baby, Crown, Minus } from 'lucide-react'
+import {
+  Plus, Heart, Baby, Crown, Minus,
+  Mars, Venus, NonBinary, CircleHelp,
+  type LucideIcon,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import type { PersonFlowNode } from '../../utils/layout'
 
@@ -13,16 +18,35 @@ const genderStyles: Record<string, string> = {
   unknown: 'bg-muted border-border',
 }
 
-const genderDot: Record<string, string> = {
-  male: 'bg-blue-400',
-  female: 'bg-pink-400',
-  other: 'bg-purple-400',
-  unknown: 'bg-muted-foreground',
+const genderIcon: Record<string, LucideIcon> = {
+  male: Mars,
+  female: Venus,
+  other: NonBinary,
+  unknown: CircleHelp,
 }
+
+const genderIconColor: Record<string, string> = {
+  male: 'text-blue-500',
+  female: 'text-pink-500',
+  other: 'text-purple-500',
+  unknown: 'text-muted-foreground',
+}
+
+const avatarStyles: Record<string, string> = {
+  male: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200',
+  female: 'bg-pink-100 text-pink-700 dark:bg-pink-900 dark:text-pink-200',
+  other: 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-200',
+  unknown: 'bg-muted text-muted-foreground',
+}
+
+// Handles still anchor the auto-generated edges, but they carry no meaning for
+// the user (you don't draw connections by hand), so they're hidden with opacity
+// only — their box must keep its size so edge endpoints stay centered.
+const hiddenHandle = '!size-2.5 !opacity-0'
 
 export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
   const {
-    person, onEdit, onAddSpouse, onAddChild, onAddParent,
+    person, onOpenDetails, onAddSpouse, onAddChild, onAddParent,
     hasChildren, isCollapsed, hiddenCount, onToggleCollapse,
   } = data
 
@@ -34,46 +58,44 @@ export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
       : `b. ${birthYear}`
     : null
 
+  const initials =
+    `${person.firstName?.[0] ?? ''}${person.lastName?.[0] ?? ''}`.toUpperCase() || '?'
+
+  const GenderIcon = genderIcon[person.gender]
+
   return (
     <div
+      onClick={() => onOpenDetails(person.id)}
       className={cn(
-        'relative w-50 rounded-xl border-2 bg-card px-3 py-2 shadow-sm transition-shadow hover:shadow-md',
+        'relative flex h-16 w-50 cursor-pointer flex-col justify-center rounded-xl border-2 bg-card px-3 shadow-sm transition-shadow hover:shadow-md',
         genderStyles[person.gender],
         person.isDeceased && 'opacity-60'
       )}
     >
-      <Handle
-        type="target"
-        position={Position.Top}
-        id="top"
-        className="bg-slate-400! size-2.5! border-background! border-2!"
-      />
-      <Handle
-        type="target"
-        position={Position.Left}
-        id="spouse-left"
-        className="bg-slate-400! size-2.5! border-background! border-2!"
-      />
-      <Handle
-        type="source"
-        position={Position.Right}
-        id="spouse-right"
-        className="bg-slate-400! size-2.5! border-background! border-2!"
-      />
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        id="bottom"
-        className="bg-slate-400! size-2.5! border-background! border-2!"
-      />
+      <Handle type="target" position={Position.Top} id="top" className={hiddenHandle} />
+      {/* Both side handles are sources: a person is always the source of a spouse
+          edge (couple node is the target), and a card can sit on either side. */}
+      <Handle type="source" position={Position.Left} id="spouse-left" className={hiddenHandle} />
+      <Handle type="source" position={Position.Right} id="spouse-right" className={hiddenHandle} />
+      <Handle type="source" position={Position.Bottom} id="bottom" className={hiddenHandle} />
 
       {/* Person info */}
-      <div className="flex items-start gap-2">
-        <div className={cn('mt-1 size-2.5 shrink-0 rounded-full', genderDot[person.gender])} />
+      <div className="flex items-center gap-2.5">
+        <Avatar className={cn('shrink-0', avatarStyles[person.gender])}>
+          <AvatarFallback className={cn('font-semibold', avatarStyles[person.gender])}>
+            {initials}
+          </AvatarFallback>
+        </Avatar>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold leading-tight text-foreground">
-            {person.firstName} {person.lastName}
-          </p>
+          <div className="flex items-center gap-1.5">
+            <p className="truncate text-sm font-semibold leading-tight text-foreground">
+              {person.firstName} {person.lastName}
+            </p>
+            <GenderIcon
+              className={cn('size-3.5 shrink-0', genderIconColor[person.gender])}
+              aria-label={person.gender}
+            />
+          </div>
           {dateStr && (
             <p className="mt-0.5 text-xs text-muted-foreground">{dateStr}</p>
           )}
@@ -83,22 +105,22 @@ export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
         </div>
       </div>
 
-      {/* Action row */}
-      <div className="nodrag nopan mt-2 flex gap-1">
-        <button
-          onClick={() => onEdit(person.id)}
-          className="flex h-6 w-6 items-center justify-center rounded-md border border-border bg-background/60 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          title="Edit"
-        >
-          <Pencil className="size-3" />
-        </button>
-
+      {/* Bottom-border controls: + Add (always) and collapse toggle (single parents) */}
+      <div className="nodrag nopan absolute -bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-1">
         <Popover>
-          <PopoverTrigger className="flex h-6 flex-1 items-center justify-center gap-1 rounded-md border border-border bg-background/60 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
-            <Plus className="size-3" />
-            Add
+          <PopoverTrigger
+            onClick={(e) => e.stopPropagation()}
+            className="flex size-6 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-muted hover:text-foreground"
+            title="Add relative"
+          >
+            <Plus className="size-3.5" />
           </PopoverTrigger>
-          <PopoverContent className="nodrag nopan w-44 p-1" side="top" align="start">
+          <PopoverContent
+            className="nodrag nopan w-44 p-1"
+            side="bottom"
+            align="center"
+            onClick={(e) => e.stopPropagation()}
+          >
             <button
               onClick={() => onAddSpouse(person.id)}
               className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
@@ -122,33 +144,32 @@ export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
             </button>
           </PopoverContent>
         </Popover>
-      </div>
 
-      {/* Collapse / expand a single parent's descendants */}
-      {hasChildren && onToggleCollapse && (
-        <button
-          className={cn(
-            'nodrag nopan absolute -bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold leading-none shadow-sm transition-colors',
-            isCollapsed
-              ? 'border-primary/40 bg-primary/10 text-primary hover:bg-primary/20'
-              : 'border-border bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground'
-          )}
-          onClick={(e) => {
-            e.stopPropagation()
-            onToggleCollapse(`person-${person.id}`)
-          }}
-          title={isCollapsed ? `Show ${hiddenCount} hidden` : 'Hide descendants'}
-        >
-          {isCollapsed ? (
-            <>
-              <Plus className="size-2.5" />
-              {hiddenCount}
-            </>
-          ) : (
-            <Minus className="size-2.5" />
-          )}
-        </button>
-      )}
+        {hasChildren && onToggleCollapse && (
+          <button
+            className={cn(
+              'flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold leading-none shadow-sm transition-colors',
+              isCollapsed
+                ? 'border-primary/40 bg-primary/10 text-primary hover:bg-primary/20'
+                : 'border-border bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground'
+            )}
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleCollapse(`person-${person.id}`)
+            }}
+            title={isCollapsed ? `Show ${hiddenCount} hidden` : 'Hide descendants'}
+          >
+            {isCollapsed ? (
+              <>
+                <Plus className="size-2.5" />
+                {hiddenCount}
+              </>
+            ) : (
+              <Minus className="size-2.5" />
+            )}
+          </button>
+        )}
+      </div>
     </div>
   )
 }

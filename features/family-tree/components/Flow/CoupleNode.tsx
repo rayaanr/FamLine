@@ -1,26 +1,35 @@
 'use client'
 
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { Minus, Plus } from 'lucide-react'
+import {
+  Minus, Plus, Heart, HeartCrack, Unlink, HeartHandshake,
+  type LucideIcon,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CoupleFlowNode } from '../../utils/layout'
 
 const statusColors: Record<string, string> = {
-  married: 'bg-green-400',
-  divorced: 'bg-red-400',
-  separated: 'bg-amber-400',
-  partnered: 'bg-blue-400',
+  married: 'text-green-500',
+  divorced: 'text-red-500',
+  separated: 'text-amber-500',
+  partnered: 'text-blue-500',
 }
 
-const statusLabels: Record<string, string> = {
-  married: '♥',
-  divorced: '✕',
-  separated: '~',
-  partnered: '♡',
+const statusIcon: Record<string, LucideIcon> = {
+  married: Heart,
+  divorced: HeartCrack,
+  separated: Unlink,
+  partnered: HeartHandshake,
 }
+
+// Handles anchor the auto-generated edges but aren't user-interactive. Hide with
+// opacity only — keep the box size so edge endpoints stay centered on the node.
+const hiddenHandle = '!size-2 !opacity-0'
 
 export function CoupleNode({ data }: NodeProps<CoupleFlowNode>) {
   const { couple, onEdit, isCollapsed, hiddenCount, hasChildren, onToggleCollapse } = data
+
+  const StatusIcon = statusIcon[couple.status] ?? Heart
 
   return (
     <div
@@ -31,33 +40,12 @@ export function CoupleNode({ data }: NodeProps<CoupleFlowNode>) {
       onClick={() => onEdit(couple.id)}
       title={`${couple.status} — click to edit`}
     >
-      {/* Left handle — receives partner1 or partner2 */}
-      <Handle
-        type="target"
-        position={Position.Left}
-        id="left"
-        className="bg-slate-400! size-2! border-background! border!"
-      />
+      <Handle type="target" position={Position.Left} id="left" className={hiddenHandle} />
+      <Handle type="target" position={Position.Right} id="right" className={hiddenHandle} />
+      <Handle type="source" position={Position.Bottom} id="bottom" className={hiddenHandle} />
 
-      {/* Right handle — receives partner1 or partner2 */}
-      <Handle
-        type="target"
-        position={Position.Right}
-        id="right"
-        className="bg-slate-400! size-2! border-background! border!"
-      />
-
-      {/* Bottom handle — children go down from here */}
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        id="bottom"
-        className="bg-slate-400! size-2! border-background! border!"
-      />
-
-      <div className={cn('size-3 rounded-full', statusColors[couple.status])}>
-        <span className="sr-only">{statusLabels[couple.status]}</span>
-      </div>
+      <StatusIcon className={cn('size-4', statusColors[couple.status])} fill="currentColor" />
+      <span className="sr-only">{couple.status}</span>
 
       {/* Collapse / expand this couple's descendants */}
       {hasChildren && (

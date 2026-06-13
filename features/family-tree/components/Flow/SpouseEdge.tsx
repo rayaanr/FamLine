@@ -9,15 +9,14 @@ export function SpouseEdge({
   targetX,
   targetY,
   id,
-  markerEnd,
 }: EdgeProps<SpouseFlowEdge>) {
   const [edgePath] = getStraightPath({ sourceX, sourceY, targetX, targetY })
 
+  // Plain connector — both partners link to the couple node symmetrically.
   return (
     <BaseEdge
       id={id}
       path={edgePath}
-      markerEnd={markerEnd}
       style={{ stroke: '#94a3b8', strokeWidth: 2 }}
     />
   )

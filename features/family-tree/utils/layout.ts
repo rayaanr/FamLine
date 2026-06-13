@@ -3,10 +3,10 @@ import type { FamilyTree, Person, Couple, ParentChildType } from '../types'
 
 // ── Dimensions & spacing ──────────────────────────────────────────────────────
 const PERSON_W = 200
-const PERSON_H = 92
+const PERSON_H = 64
 const COUPLE_W = 40
 const COUPLE_H = 40
-const SPOUSE_GAP = 56   // gap between two partner cards (couple node sits in it)
+const SPOUSE_GAP = 80  // gap between two partner cards (couple node sits in it)
 const SIBLING_GAP = 48  // horizontal gap between sibling subtrees
 const ROW_GAP = 110     // vertical gap between generations
 const ROOT_GAP = 140    // horizontal gap between separate family trees
@@ -19,6 +19,7 @@ const PARTNER_OFFSET = PERSON_W / 2 + SPOUSE_GAP / 2
 export interface PersonNodeData extends Record<string, unknown> {
   person: Person
   onEdit: (id: string) => void
+  onOpenDetails: (id: string) => void
   onAddSpouse: (id: string) => void
   onAddChild: (id: string) => void
   onAddParent: (id: string) => void
@@ -53,6 +54,7 @@ export type AppEdge = SpouseFlowEdge | ParentChildFlowEdge
 
 export interface NodeCallbacks {
   onEditPerson: (id: string) => void
+  onOpenDetails: (id: string) => void
   onAddSpouse: (id: string) => void
   onAddChild: (id: string) => void
   onAddParent: (id: string) => void
@@ -377,6 +379,7 @@ export function buildGraphFromTree(
       data: {
         person,
         onEdit: callbacks.onEditPerson,
+        onOpenDetails: callbacks.onOpenDetails,
         onAddSpouse: callbacks.onAddSpouse,
         onAddChild: callbacks.onAddChild,
         onAddParent: callbacks.onAddParent,

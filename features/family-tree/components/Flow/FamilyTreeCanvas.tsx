@@ -15,6 +15,7 @@ import {
   type EdgeTypes,
 } from '@xyflow/react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useQueryState } from 'nuqs'
 import { useFamilyStore, useActiveTree, getActiveTree } from '../../hooks/useFamilyStore'
 import { useHydration } from '../../hooks/useHydration'
 import { buildGraphFromTree, type NodeCallbacks } from '../../utils/layout'
@@ -26,6 +27,7 @@ import { FamilyTreeToolbar } from '../Toolbar/FamilyTreeToolbar'
 import { FamilyTreeLegend } from '../Legend/FamilyTreeLegend'
 import { AddPersonDialog } from '../dialogs/AddPersonDialog'
 import { AddRelationshipDialog } from '../dialogs/AddRelationshipDialog'
+import { PersonDetailSheet } from '../PersonDetailSheet'
 import type { Person } from '../../types'
 
 // Defined at module scope — React Flow requires stable references
@@ -70,10 +72,17 @@ export function FamilyTreeCanvas() {
   // Relationship dialog — single state object covers all three entry points
   const [relDialog, setRelDialog] = useState<RelDialogState>({ open: false })
 
+  // Selected person for the detail sheet (URL = source of truth via ?person=<id>)
+  const [, setSelectedPerson] = useQueryState('person')
+
   const handleEditPerson = useCallback((id: string) => {
     const person = getActiveTree().people[id]
     if (person) setPersonDialog({ open: true, edit: person })
   }, [])
+
+  const handleOpenDetails = useCallback((id: string) => {
+    setSelectedPerson(id)
+  }, [setSelectedPerson])
 
   const handleAddSpouse = useCallback((id: string) => {
     setRelDialog({ open: true, mode: 'couple', partnerId: id })
@@ -92,13 +101,14 @@ export function FamilyTreeCanvas() {
   const callbacks: NodeCallbacks = useMemo(
     () => ({
       onEditPerson: handleEditPerson,
+      onOpenDetails: handleOpenDetails,
       onAddSpouse: handleAddSpouse,
       onAddChild: handleAddChild,
       onAddParent: handleAddParent,
       onEditCouple: handleEditCouple,
       onToggleCollapse: toggleCollapse,
     }),
-    [handleEditPerson, handleAddSpouse, handleAddChild, handleAddParent, handleEditCouple, toggleCollapse]
+    [handleEditPerson, handleOpenDetails, handleAddSpouse, handleAddChild, handleAddParent, handleEditCouple, toggleCollapse]
   )
 
   const { nodes: layoutNodes, edges: layoutEdges } = useMemo(
@@ -195,6 +205,8 @@ export function FamilyTreeCanvas() {
         preselectedParentId={relDialog.open && relDialog.mode === 'parentChild' ? relDialog.parentId : undefined}
         preselectedChildId={relDialog.open && relDialog.mode === 'parentChild' ? relDialog.childId : undefined}
       />
+
+      <PersonDetailSheet onEdit={handleEditPerson} />
     </>
   )
 }

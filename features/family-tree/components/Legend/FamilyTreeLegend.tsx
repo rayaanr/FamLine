@@ -1,6 +1,11 @@
 'use client'
 
-import { ChevronDown, Info } from 'lucide-react'
+import {
+  ChevronDown, Info,
+  Mars, Venus, NonBinary, CircleHelp,
+  Heart, HeartHandshake, Unlink, HeartCrack,
+  type LucideIcon,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   Collapsible,
@@ -9,19 +14,19 @@ import {
 } from '@/components/ui/collapsible'
 
 // Keep these in sync with PersonNode (gender), CoupleNode (status) and
-// ParentChildEdge (parentage) — they mirror the colors used on the canvas.
-const genderItems = [
-  { label: 'Male', dot: 'bg-blue-400' },
-  { label: 'Female', dot: 'bg-pink-400' },
-  { label: 'Other', dot: 'bg-purple-400' },
-  { label: 'Unknown', dot: 'bg-muted-foreground' },
+// ParentChildEdge (parentage) — they mirror the icons/colors used on the canvas.
+const genderItems: { label: string; icon: LucideIcon; color: string }[] = [
+  { label: 'Male', icon: Mars, color: 'text-blue-500' },
+  { label: 'Female', icon: Venus, color: 'text-pink-500' },
+  { label: 'Other', icon: NonBinary, color: 'text-purple-500' },
+  { label: 'Unknown', icon: CircleHelp, color: 'text-muted-foreground' },
 ]
 
-const statusItems = [
-  { label: 'Married', dot: 'bg-green-400' },
-  { label: 'Partnered', dot: 'bg-blue-400' },
-  { label: 'Separated', dot: 'bg-amber-400' },
-  { label: 'Divorced', dot: 'bg-red-400' },
+const statusItems: { label: string; icon: LucideIcon; color: string }[] = [
+  { label: 'Married', icon: Heart, color: 'text-green-500' },
+  { label: 'Partnered', icon: HeartHandshake, color: 'text-blue-500' },
+  { label: 'Separated', icon: Unlink, color: 'text-amber-500' },
+  { label: 'Divorced', icon: HeartCrack, color: 'text-red-500' },
 ]
 
 const lineItems = [
@@ -71,7 +76,7 @@ export function FamilyTreeLegend() {
               <Row
                 key={g.label}
                 label={g.label}
-                swatch={<span className={cn('size-2.5 rounded-full', g.dot)} />}
+                swatch={<g.icon className={cn('size-3.5', g.color)} />}
               />
             ))}
           </Section>
@@ -82,8 +87,8 @@ export function FamilyTreeLegend() {
                 key={s.label}
                 label={s.label}
                 swatch={
-                  <span className="flex size-4 items-center justify-center rounded-full border border-border bg-background">
-                    <span className={cn('size-2 rounded-full', s.dot)} />
+                  <span className="flex size-5 items-center justify-center rounded-full border border-border bg-background">
+                    <s.icon className={cn('size-3', s.color)} fill="currentColor" />
                   </span>
                 }
               />
@@ -113,7 +118,9 @@ export function FamilyTreeLegend() {
           </Section>
 
           <p className="border-t border-border pt-2 text-[11px] leading-snug text-muted-foreground">
-            Faded cards mark a deceased person.
+            Faded cards mark a deceased person. Click a card to view details, or use
+            <span className="font-medium text-foreground"> + </span>
+            to add a relative.
           </p>
         </div>
       </CollapsibleContent>
