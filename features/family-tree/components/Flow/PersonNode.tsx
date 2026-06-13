@@ -9,6 +9,7 @@ import {
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { calculateAge } from '../../utils/age'
 import type { PersonFlowNode } from '../../utils/layout'
 
 const genderStyles: Record<string, string> = {
@@ -61,6 +62,8 @@ export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
   const initials =
     `${person.firstName?.[0] ?? ''}${person.lastName?.[0] ?? ''}`.toUpperCase() || '?'
 
+  const age = calculateAge(person.birthDate, person.isDeceased ? person.deathDate : undefined)
+
   const GenderIcon = genderIcon[person.gender]
 
   return (
@@ -96,10 +99,18 @@ export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
               aria-label={person.gender}
             />
           </div>
-          {dateStr && (
-            <p className="mt-0.5 text-xs text-muted-foreground">{dateStr}</p>
+          {(dateStr || age !== null) && (
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {dateStr}
+              {age !== null && (
+                <span className="text-muted-foreground/80">
+                  {dateStr ? ' · ' : ''}
+                  {person.isDeceased ? `aged ${age}` : `${age} yrs`}
+                </span>
+              )}
+            </p>
           )}
-          {person.isDeceased && !deathYear && (
+          {person.isDeceased && !deathYear && !dateStr && (
             <p className="mt-0.5 text-xs text-muted-foreground">†</p>
           )}
         </div>
