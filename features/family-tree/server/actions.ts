@@ -14,6 +14,7 @@ import {
 import { TREE_ROLES, type TreeRole } from "@/lib/permissions";
 import type { FamilyTree } from "@/features/family-tree/types";
 import { personDisplayName } from "@/features/family-tree/utils/person";
+import { buildMockFamily } from "@/features/family-tree/utils/mockData";
 
 const emptyTree = (): FamilyTree => ({
   people: {},
@@ -49,6 +50,25 @@ export async function createTree(name?: string): Promise<string> {
     ownerId: session.user.id,
     data: emptyTree(),
   });
+  revalidatePath("/tree");
+  return id;
+}
+
+/**
+ * Dev helper: create a tree pre-filled with the generated demo family. Surfaced
+ * only in development from the gallery.
+ */
+export async function createDemoTree(): Promise<string> {
+  const session = await requireAuth();
+  const id = nanoid();
+  const data: FamilyTree = { ...buildMockFamily(), collapsed: [] };
+  await db.insert(trees).values({
+    id,
+    name: "Demo Family",
+    ownerId: session.user.id,
+    data,
+  });
+  await rebuildPeopleIndex(id, data);
   revalidatePath("/tree");
   return id;
 }

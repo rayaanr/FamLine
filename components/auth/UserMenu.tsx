@@ -32,10 +32,10 @@ export function UserMenu() {
   if (!session) {
     return (
       <div className="flex items-center gap-2">
-        <Button render={<Link href="/login" />} nativeButton={false} variant="ghost" size="sm">
+        <Button render={<Link href="/login" />} nativeButton={false} variant="secondary">
           Sign in
         </Button>
-        <Button render={<Link href="/signup" />} nativeButton={false} size="sm">
+        <Button render={<Link href="/signup" />} nativeButton={false}>
           Sign up
         </Button>
       </div>

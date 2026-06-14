@@ -2,8 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { useReactFlow } from '@xyflow/react'
-import { Check, FlaskConical, Pencil } from 'lucide-react'
+import { Check, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -23,7 +22,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { Separator } from '@/components/ui/separator'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -48,11 +46,9 @@ export function TreeSettingsDialog({
   onClose: () => void
 }) {
   const router = useRouter()
-  const { fitView } = useReactFlow()
   const tree = useActiveTree()
   const { role, canEdit, canManage } = useTreeAccess()
   const clearTree = useFamilyStore((s) => s.clearTree)
-  const loadMockData = useFamilyStore((s) => s.loadMockData)
 
   const [pending, startTransition] = useTransition()
   const [renaming, setRenaming] = useState(false)
@@ -101,12 +97,6 @@ export function TreeSettingsDialog({
         setDeleteOpen(false)
       }
     })
-  }
-
-  const handleDemo = () => {
-    loadMockData()
-    setTimeout(() => fitView({ duration: 400 }), 50)
-    onClose()
   }
 
   return (
@@ -204,25 +194,6 @@ export function TreeSettingsDialog({
                   </dd>
                 </div>
               </dl>
-
-              {canEdit && (
-                <>
-                  <Separator />
-                  <div className="flex flex-col gap-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Tools
-                    </p>
-                    <Button
-                      variant="outline"
-                      className="justify-start gap-2"
-                      onClick={handleDemo}
-                    >
-                      <FlaskConical className="size-4" />
-                      Load demo family
-                    </Button>
-                  </div>
-                </>
-              )}
             </TabsContent>
 
             {/* Members */}

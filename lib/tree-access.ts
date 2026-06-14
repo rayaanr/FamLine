@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { and, desc, eq, isNotNull, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { trees, treeMembership, peopleIndex } from "@/db/schema";
+import { trees, treeMembership } from "@/db/schema";
 import { getSession } from "@/lib/auth-server";
 import {
   canEditTree,
@@ -70,7 +70,11 @@ export interface TreeSummary {
   isOwner: boolean;
 }
 
-const peopleCountSql = sql<number>`(select count(*) from ${peopleIndex} where ${peopleIndex.treeId} = ${trees.id})`.mapWith(
+// Correlated count of indexed people. Identifiers are written qualified on
+// purpose: a bare `sql` fragment does NOT auto-qualify interpolated columns, so
+// `${trees.id}` would render as a bare `"id"` that binds to people_index inside
+// the subquery (making the correlation always false → count 0).
+const peopleCountSql = sql<number>`(select count(*) from "people_index" where "people_index"."tree_id" = "trees"."id")`.mapWith(
   Number,
 );
 

@@ -3,15 +3,17 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Check, Pencil, Plus, TreePine, Trash2, Users } from 'lucide-react'
+import { Check, FlaskConical, Pencil, Plus, TreePine, Trash2, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { TREE_ROLE_LABELS } from '@/lib/permissions'
 import type { TreeSummary } from '@/lib/tree-access'
-import { deleteTree, renameTree } from '../server/actions'
+import { createDemoTree, deleteTree, renameTree } from '../server/actions'
 import { NewTreeDialog } from './dialogs/NewTreeDialog'
+
+const isDev = process.env.NODE_ENV === 'development'
 
 export function TreeGallery({ initialTrees }: { initialTrees: TreeSummary[] }) {
   const router = useRouter()
@@ -33,6 +35,17 @@ export function TreeGallery({ initialTrees }: { initialTrees: TreeSummary[] }) {
         router.refresh()
       } catch {
         toast.error('Failed to rename tree')
+      }
+    })
+  }
+
+  const handleLoadDemo = () => {
+    startTransition(async () => {
+      try {
+        const id = await createDemoTree()
+        router.push(`/tree/${id}`)
+      } catch {
+        toast.error('Failed to create demo tree')
       }
     })
   }
@@ -67,10 +80,23 @@ export function TreeGallery({ initialTrees }: { initialTrees: TreeSummary[] }) {
             {initialTrees.length === 1 ? 'tree' : 'trees'}
           </p>
         </div>
-        <Button onClick={() => setNewOpen(true)} className="gap-1.5">
-          <Plus className="size-4" />
-          New tree
-        </Button>
+        <div className="flex items-center gap-2">
+          {isDev && (
+            <Button
+              variant="outline"
+              onClick={handleLoadDemo}
+              className="gap-1.5"
+              title="Create a tree pre-filled with demo data (dev only)"
+            >
+              <FlaskConical className="size-4" />
+              Load demo
+            </Button>
+          )}
+          <Button onClick={() => setNewOpen(true)} className="gap-1.5">
+            <Plus className="size-4" />
+            New tree
+          </Button>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -177,7 +203,7 @@ export function TreeGallery({ initialTrees }: { initialTrees: TreeSummary[] }) {
         <button
           type="button"
           onClick={() => setNewOpen(true)}
-          className="flex min-h-[8.5rem] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+          className="flex min-h-34 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
         >
           <Plus className="size-6" />
           <span className="text-sm font-medium">New family tree</span>

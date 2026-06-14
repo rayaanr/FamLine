@@ -7,6 +7,7 @@ import {
   jsonb,
   index,
   uniqueIndex,
+  primaryKey,
 } from "drizzle-orm/pg-core";
 import type { FamilyTree } from "@/features/family-tree/types";
 import { user } from "./auth-schema";
@@ -64,7 +65,8 @@ export const treeMembership = pgTable(
 export const peopleIndex = pgTable(
   "people_index",
   {
-    id: text("id").primaryKey(),
+    // The person's id *within its tree* — unique per tree, not globally.
+    id: text("id").notNull(),
     treeId: text("tree_id")
       .notNull()
       .references(() => trees.id, { onDelete: "cascade" }),
@@ -72,7 +74,10 @@ export const peopleIndex = pgTable(
     birthYear: integer("birth_year"),
     gender: text("gender"),
   },
-  (table) => [index("people_index_treeId_idx").on(table.treeId)],
+  (table) => [
+    primaryKey({ columns: [table.treeId, table.id] }),
+    index("people_index_treeId_idx").on(table.treeId),
+  ],
 );
 
 export const treesRelations = relations(trees, ({ one, many }) => ({
