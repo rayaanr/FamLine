@@ -3,7 +3,11 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { authClient } from '@/lib/auth-client'
-import { APP_ROLES, ROLE_LABELS, type AppRole } from '@/lib/permissions'
+import {
+  GLOBAL_ROLES,
+  GLOBAL_ROLE_LABELS,
+  type GlobalRole,
+} from '@/lib/permissions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -40,7 +44,7 @@ export function UserManagement({
   const [users, setUsers] = useState<AdminUser[]>(initialUsers)
   const [pendingId, setPendingId] = useState<string | null>(null)
 
-  const changeRole = async (userId: string, role: AppRole) => {
+  const changeRole = async (userId: string, role: GlobalRole) => {
     setPendingId(userId)
     const { error } = await authClient.admin.setRole({ userId, role })
     setPendingId(null)
@@ -51,7 +55,7 @@ export function UserManagement({
     setUsers((prev) =>
       prev.map((u) => (u.id === userId ? { ...u, role } : u)),
     )
-    toast.success(`Role updated to ${ROLE_LABELS[role]}`)
+    toast.success(`Role updated to ${GLOBAL_ROLE_LABELS[role]}`)
   }
 
   const toggleBan = async (user: AdminUser) => {
@@ -102,9 +106,9 @@ export function UserManagement({
               </TableCell>
               <TableCell>
                 <Select
-                  value={(user.role ?? 'user') as AppRole}
+                  value={user.role === 'super_admin' ? 'super_admin' : 'user'}
                   onValueChange={(value) =>
-                    changeRole(user.id, value as AppRole)
+                    changeRole(user.id, value as GlobalRole)
                   }
                   disabled={busy || isSelf}
                 >
@@ -112,9 +116,9 @@ export function UserManagement({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {APP_ROLES.map((role) => (
+                    {GLOBAL_ROLES.map((role) => (
                       <SelectItem key={role} value={role}>
-                        {ROLE_LABELS[role]}
+                        {GLOBAL_ROLE_LABELS[role]}
                       </SelectItem>
                     ))}
                   </SelectContent>

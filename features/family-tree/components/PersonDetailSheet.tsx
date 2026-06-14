@@ -21,6 +21,7 @@ import {
   SheetFooter,
 } from '@/components/ui/sheet'
 import { useActiveTree } from '../hooks/useFamilyStore'
+import { useTreeAccess } from '../hooks/useTreeAccess'
 import { calculateAge } from '../utils/age'
 import { getCloseRelations } from '../utils/relations'
 import { personDisplayName, personInitials, isPlaceholderPerson } from '../utils/person'
@@ -119,6 +120,7 @@ function RelationGroup({
 export function PersonDetailSheet({ onEdit }: { onEdit: (id: string) => void }) {
   const [personId, setPersonId] = useQueryState('person')
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const { canEdit } = useTreeAccess()
   const tree = useActiveTree()
   const person = personId ? tree.people[personId] : undefined
 
@@ -220,20 +222,22 @@ export function PersonDetailSheet({ onEdit }: { onEdit: (id: string) => void }) 
               )}
             </div>
 
-            <SheetFooter className="flex-row justify-between">
-              <Button
-                onClick={() => setConfirmDelete(true)}
-                variant="ghost"
-                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-              >
-                <Trash2 />
-                Delete
-              </Button>
-              <Button onClick={handleEdit} variant="outline">
-                <Pencil />
-                {isPlaceholderPerson(person) ? 'Add details' : 'Edit details'}
-              </Button>
-            </SheetFooter>
+            {canEdit && (
+              <SheetFooter className="flex-row justify-between">
+                <Button
+                  onClick={() => setConfirmDelete(true)}
+                  variant="ghost"
+                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <Trash2 />
+                  Delete
+                </Button>
+                <Button onClick={handleEdit} variant="outline">
+                  <Pencil />
+                  {isPlaceholderPerson(person) ? 'Add details' : 'Edit details'}
+                </Button>
+              </SheetFooter>
+            )}
           </>
         )}
       </SheetContent>

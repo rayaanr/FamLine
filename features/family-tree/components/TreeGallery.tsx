@@ -1,41 +1,58 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Check, Pencil, Plus, TreePine, Trash2, Users } from 'lucide-react'
+import { toast } from 'sonner'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useFamilyStore } from '../hooks/useFamilyStore'
-import { useHydration } from '../hooks/useHydration'
+import { TREE_ROLE_LABELS } from '@/lib/permissions'
+import type { TreeSummary } from '@/lib/tree-access'
+import { deleteTree, renameTree } from '../server/actions'
 import { NewTreeDialog } from './dialogs/NewTreeDialog'
 
-export function TreeGallery() {
-  const hydrated = useHydration()
-  const trees = useFamilyStore((s) => s.trees)
-  const renameTree = useFamilyStore((s) => s.renameTree)
-  const deleteTree = useFamilyStore((s) => s.deleteTree)
+export function TreeGallery({ initialTrees }: { initialTrees: TreeSummary[] }) {
+  const router = useRouter()
+  const [, startTransition] = useTransition()
 
   const [newOpen, setNewOpen] = useState(false)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
 
-  const treeList = Object.values(trees).sort((a, b) =>
-    a.createdAt.localeCompare(b.createdAt)
-  )
-  const canDelete = treeList.length > 1
-
   const commitRename = () => {
-    if (renamingId) renameTree(renamingId, draft)
+    const id = renamingId
+    const name = draft.trim()
     setRenamingId(null)
     setDraft('')
+    if (!id || !name) return
+    startTransition(async () => {
+      try {
+        await renameTree(id, name)
+        router.refresh()
+      } catch {
+        toast.error('Failed to rename tree')
+      }
+    })
   }
 
-  if (!hydrated) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-border border-t-primary" />
-      </div>
+  const handleDelete = (tree: TreeSummary) => {
+    if (
+      !window.confirm(
+        `Delete "${tree.name}"? This permanently removes everyone in it.`,
+      )
     )
+      return
+    startTransition(async () => {
+      try {
+        await deleteTree(tree.id)
+        router.refresh()
+        toast.success('Tree deleted')
+      } catch {
+        toast.error('Failed to delete tree')
+      }
+    })
   }
 
   return (
@@ -46,7 +63,8 @@ export function TreeGallery() {
             Your family trees
           </h1>
           <p className="text-sm text-muted-foreground">
-            {treeList.length} {treeList.length === 1 ? 'tree' : 'trees'}
+            {initialTrees.length}{' '}
+            {initialTrees.length === 1 ? 'tree' : 'trees'}
           </p>
         </div>
         <Button onClick={() => setNewOpen(true)} className="gap-1.5">
@@ -56,8 +74,7 @@ export function TreeGallery() {
       </header>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {treeList.map((tree) => {
-          const peopleCount = Object.keys(tree.people).length
+        {initialTrees.map((tree) => {
           const updated = new Date(tree.updatedAt).toLocaleDateString(undefined, {
             year: 'numeric',
             month: 'short',
@@ -73,38 +90,31 @@ export function TreeGallery() {
                 <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
                   <TreePine className="size-5" />
                 </div>
-                <div className="relative z-10 flex items-center opacity-0 transition-opacity group-hover:opacity-100">
-                  <Button
-                    size="icon-sm"
-                    variant="ghost"
-                    className="size-7 text-muted-foreground"
-                    title="Rename"
-                    onClick={() => {
-                      setRenamingId(tree.id)
-                      setDraft(tree.name)
-                    }}
-                  >
-                    <Pencil className="size-3.5" />
-                  </Button>
-                  <Button
-                    size="icon-sm"
-                    variant="ghost"
-                    className="size-7 text-muted-foreground hover:text-destructive"
-                    title={canDelete ? 'Delete tree' : 'Cannot delete the last tree'}
-                    disabled={!canDelete}
-                    onClick={() => {
-                      if (
-                        window.confirm(
-                          `Delete "${tree.name}"? This permanently removes everyone in it.`
-                        )
-                      ) {
-                        deleteTree(tree.id)
-                      }
-                    }}
-                  >
-                    <Trash2 className="size-3.5" />
-                  </Button>
-                </div>
+                {tree.role === 'owner' && (
+                  <div className="relative z-10 flex items-center opacity-0 transition-opacity group-hover:opacity-100">
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      className="size-7 text-muted-foreground"
+                      title="Rename"
+                      onClick={() => {
+                        setRenamingId(tree.id)
+                        setDraft(tree.name)
+                      }}
+                    >
+                      <Pencil className="size-3.5" />
+                    </Button>
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      className="size-7 text-muted-foreground hover:text-destructive"
+                      title="Delete tree"
+                      onClick={() => handleDelete(tree)}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </div>
+                )}
               </div>
 
               {renamingId === tree.id ? (
@@ -135,12 +145,18 @@ export function TreeGallery() {
                 </form>
               ) : (
                 <Link href={`/tree/${tree.id}`} className="flex flex-col gap-1">
-                  <span className="truncate text-base font-semibold text-foreground">
+                  <span className="flex items-center gap-2 truncate text-base font-semibold text-foreground">
                     {tree.name}
+                    {tree.role !== 'owner' && (
+                      <Badge variant="secondary" className="shrink-0">
+                        {TREE_ROLE_LABELS[tree.role]}
+                      </Badge>
+                    )}
                   </span>
                   <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Users className="size-3.5" />
-                    {peopleCount} {peopleCount === 1 ? 'person' : 'people'}
+                    {tree.peopleCount}{' '}
+                    {tree.peopleCount === 1 ? 'person' : 'people'}
                     <span aria-hidden>·</span>
                     Updated {updated}
                   </span>

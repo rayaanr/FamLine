@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { calculateAge } from '../../utils/age'
 import { personDisplayName, personInitials, isPlaceholderPerson } from '../../utils/person'
+import { useTreeAccess } from '../../hooks/useTreeAccess'
 import type { PersonFlowNode } from '../../utils/layout'
 
 const genderStyles: Record<string, string> = {
@@ -52,6 +53,7 @@ export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
     hasChildren, isCollapsed, hiddenCount, onToggleCollapse,
   } = data
 
+  const { canEdit } = useTreeAccess()
   const isUnknown = isPlaceholderPerson(person)
 
   const birthYear = person.birthDate ? person.birthDate.slice(0, 4) : null
@@ -128,7 +130,9 @@ export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
         </div>
       </div>
 
-      {/* Bottom-border controls: + Add (always) and collapse toggle (single parents) */}
+      {/* Bottom-border controls: + Add and collapse toggle. Editors only —
+          collapse state is persisted, so viewers can't toggle it. */}
+      {canEdit && (
       <div className="nodrag nopan absolute -bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-1">
         <Popover>
           <PopoverTrigger
@@ -219,6 +223,7 @@ export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
           </button>
         )}
       </div>
+      )}
     </div>
   )
 }

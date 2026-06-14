@@ -12,7 +12,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import { ROLE_LABELS, isSuperAdmin, type AppRole } from '@/lib/permissions'
+import { GLOBAL_ROLE_LABELS, isSuperAdmin, type GlobalRole } from '@/lib/permissions'
 
 function initials(name?: string | null, email?: string | null) {
   const source = name?.trim() || email?.trim() || '?'
@@ -32,10 +32,10 @@ export function UserMenu() {
   if (!session) {
     return (
       <div className="flex items-center gap-2">
-        <Button render={<Link href="/login" />} variant="ghost" size="sm">
+        <Button render={<Link href="/login" />} nativeButton={false} variant="ghost" size="sm">
           Sign in
         </Button>
-        <Button render={<Link href="/signup" />} size="sm">
+        <Button render={<Link href="/signup" />} nativeButton={false} size="sm">
           Sign up
         </Button>
       </div>
@@ -43,7 +43,7 @@ export function UserMenu() {
   }
 
   const { user } = session
-  const role = (user.role ?? 'user') as AppRole
+  const role = (user.role === 'super_admin' ? 'super_admin' : 'user') as GlobalRole
 
   const handleSignOut = async () => {
     await signOut()
@@ -68,13 +68,14 @@ export function UserMenu() {
         </div>
 
         <Badge variant="secondary" className="w-fit">
-          {ROLE_LABELS[role] ?? role}
+          {GLOBAL_ROLE_LABELS[role]}
         </Badge>
 
         <div className="flex flex-col gap-1">
           {isSuperAdmin(role) && (
             <Button
               render={<Link href="/admin" />}
+              nativeButton={false}
               variant="ghost"
               size="sm"
               className="justify-start"

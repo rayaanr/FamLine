@@ -6,7 +6,7 @@ import { getSessionCookie } from 'better-auth/cookies'
  * Role-level enforcement (tree access, super-admin) happens server-side in the
  * page guards (`lib/auth-server.ts`) where the full session is available.
  */
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const sessionCookie = getSessionCookie(request)
 
   if (!sessionCookie) {

@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { useFamilyStore } from '../hooks/useFamilyStore'
-import { useHydration } from '../hooks/useHydration'
+import { TreeAccessProvider } from '../hooks/useTreeAccess'
 import { FamilyTreeCanvas } from './Flow/FamilyTreeCanvas'
+import type { NamedFamilyTree } from '../types'
+import type { TreeRole } from '@/lib/permissions'
 
 function Spinner() {
   return (
@@ -15,29 +16,29 @@ function Spinner() {
 }
 
 /**
- * Renders the canvas for a specific tree. The URL is the source of truth:
- * we sync the store's active tree to the route param, and bounce to the
- * gallery if the id doesn't exist (e.g. a deleted or stale bookmark).
+ * Hydrates the DB-backed tree (provided by the server page, which has already
+ * gated access) into the store and renders the canvas. The role drives which
+ * editing controls are shown.
  */
-export function TreeView({ treeId }: { treeId: string }) {
-  const hydrated = useHydration()
-  const router = useRouter()
-  const exists = useFamilyStore((s) => !!s.trees[treeId])
-  const isActive = useFamilyStore((s) => s.activeTreeId === treeId)
-  const setActiveTree = useFamilyStore((s) => s.setActiveTree)
+export function TreeView({
+  tree,
+  role,
+}: {
+  tree: NamedFamilyTree
+  role: TreeRole
+}) {
+  const loadTree = useFamilyStore((s) => s.loadTree)
+  const isActive = useFamilyStore((s) => s.activeTreeId === tree.id)
 
   useEffect(() => {
-    if (!hydrated) return
-    if (!exists) {
-      router.replace('/tree')
-      return
-    }
-    if (!isActive) setActiveTree(treeId)
-  }, [hydrated, exists, isActive, treeId, setActiveTree, router])
+    loadTree(tree)
+  }, [tree, loadTree])
 
-  // Wait until the store's active tree matches the URL so the canvas never
-  // flashes the previously-active tree.
-  if (!hydrated || !exists || !isActive) return <Spinner />
+  if (!isActive) return <Spinner />
 
-  return <FamilyTreeCanvas />
+  return (
+    <TreeAccessProvider role={role}>
+      <FamilyTreeCanvas />
+    </TreeAccessProvider>
+  )
 }

@@ -48,9 +48,9 @@ export function SignupForm() {
     }
 
     toast.success('Account created')
-    // New accounts start as `user` (no tree access) — send them to the
-    // access-pending screen rather than the tree.
-    router.push('/access-pending')
+    // New accounts can immediately create their own tree (becoming its owner)
+    // or wait to be added to someone else's — the gallery handles both.
+    router.push('/tree')
     router.refresh()
   }
 

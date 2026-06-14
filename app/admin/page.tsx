@@ -41,8 +41,9 @@ export default async function AdminPage() {
           <CardHeader>
             <CardTitle>User management</CardTitle>
             <CardDescription>
-              Assign roles and manage access. Members and above can view trees;
-              editors can edit, and owners can create or delete trees.
+              Promote trusted accounts to Super Admin (global access to every
+              tree and user) or ban accounts. Per-tree roles are managed from
+              each tree&apos;s members panel.
             </CardDescription>
           </CardHeader>
           <CardContent>

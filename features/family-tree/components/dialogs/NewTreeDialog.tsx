@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import {
   Dialog,
   DialogContent,
@@ -14,7 +15,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { useFamilyStore } from '../../hooks/useFamilyStore'
+import { createTree } from '../../server/actions'
 
 interface NewTreeDialogProps {
   open: boolean
@@ -23,7 +24,7 @@ interface NewTreeDialogProps {
 
 export function NewTreeDialog({ open, onClose }: NewTreeDialogProps) {
   const router = useRouter()
-  const createTree = useFamilyStore((s) => s.createTree)
+  const [pending, startTransition] = useTransition()
   const [name, setName] = useState('')
 
   const trimmed = name.trim()
@@ -36,9 +37,15 @@ export function NewTreeDialog({ open, onClose }: NewTreeDialogProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!trimmed) return
-    const id = createTree(trimmed)
-    close()
-    router.push(`/tree/${id}`)
+    startTransition(async () => {
+      try {
+        const id = await createTree(trimmed)
+        close()
+        router.push(`/tree/${id}`)
+      } catch {
+        toast.error('Failed to create tree')
+      }
+    })
   }
 
   return (
@@ -67,8 +74,8 @@ export function NewTreeDialog({ open, onClose }: NewTreeDialogProps) {
             <DialogClose render={<Button type="button" variant="outline" />}>
               Cancel
             </DialogClose>
-            <Button type="submit" disabled={!trimmed}>
-              Create tree
+            <Button type="submit" disabled={!trimmed || pending}>
+              {pending ? 'Creating…' : 'Create tree'}
             </Button>
           </DialogFooter>
         </form>

@@ -2,14 +2,16 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { TreeGallery } from '@/features/family-tree'
 import { UserMenu } from '@/components/auth/UserMenu'
-import { requireTreeAccess } from '@/lib/auth-server'
+import { requireAuth } from '@/lib/auth-server'
+import { listAccessibleTrees } from '@/lib/tree-access'
 
 export const metadata: Metadata = {
   title: 'FamLine — Your Family Trees',
 }
 
 export default async function TreePage() {
-  await requireTreeAccess()
+  await requireAuth()
+  const trees = await listAccessibleTrees()
 
   return (
     <div className="min-h-screen bg-background">
@@ -19,7 +21,7 @@ export default async function TreePage() {
         </Link>
         <UserMenu />
       </header>
-      <TreeGallery />
+      <TreeGallery initialTrees={trees} />
     </div>
   )
 }

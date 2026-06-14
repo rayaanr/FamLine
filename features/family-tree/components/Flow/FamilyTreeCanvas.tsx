@@ -18,7 +18,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useQueryState } from 'nuqs'
 import { nanoid } from 'nanoid'
 import { useFamilyStore, useActiveTree, getActiveTree } from '../../hooks/useFamilyStore'
-import { useHydration } from '../../hooks/useHydration'
+import { useTreeAccess } from '../../hooks/useTreeAccess'
 import { buildGraphFromTree, type NodeCallbacks } from '../../utils/layout'
 import { PersonNode } from './PersonNode'
 import { CoupleNode } from './CoupleNode'
@@ -59,7 +59,7 @@ type RelDialogState =
   | { open: true; mode: 'parentChild'; parentId?: string; childId?: string }
 
 export function FamilyTreeCanvas() {
-  const hydrated = useHydration()
+  const { canEdit } = useTreeAccess()
 
   const tree = useActiveTree()
   const { people, couples, parentChildren, collapsed: collapsedList } = tree
@@ -160,14 +160,6 @@ export function FamilyTreeCanvas() {
 
   const isEmpty = Object.keys(people).length === 0
 
-  if (!hydrated) {
-    return (
-      <div className="flex h-full w-full items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-border border-t-primary" />
-      </div>
-    )
-  }
-
   return (
     <>
       <ReactFlow
@@ -200,6 +192,7 @@ export function FamilyTreeCanvas() {
 
         <Panel position="top-left">
           <FamilyTreeToolbar
+            canEdit={canEdit}
             onAddPerson={() => setPersonDialog({ open: true })}
           />
         </Panel>
@@ -211,9 +204,11 @@ export function FamilyTreeCanvas() {
         {isEmpty && (
           <Panel position="top-center">
             <div className="mt-20 flex flex-col items-center gap-3 text-center">
-              <p className="text-2xl font-semibold text-foreground">Your family tree is empty</p>
+              <p className="text-2xl font-semibold text-foreground">This family tree is empty</p>
               <p className="text-muted-foreground">
-                Start by adding your first family member
+                {canEdit
+                  ? 'Start by adding your first family member'
+                  : 'No one has been added yet'}
               </p>
             </div>
           </Panel>

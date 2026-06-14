@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { canViewTree, isSuperAdmin } from "@/lib/permissions";
+import { isSuperAdmin } from "@/lib/permissions";
 
 /** Current session (with user) for the incoming request, or null. */
 export async function getSession() {
@@ -9,14 +9,13 @@ export async function getSession() {
 }
 
 /**
- * Gate a route on tree access (MEMBER+). Redirects unauthenticated users to
- * `/login` and signed-in users without access to `/access-pending`.
- * Returns the session on success.
+ * Gate a route on being signed in. Tree access itself is resolved per-tree in
+ * `lib/tree-access.ts`; a signed-in user with no memberships simply sees an
+ * empty gallery. Redirects unauthenticated users to `/login`.
  */
-export async function requireTreeAccess() {
+export async function requireAuth() {
   const session = await getSession();
   if (!session) redirect("/login");
-  if (!canViewTree(session.user.role)) redirect("/access-pending");
   return session;
 }
 

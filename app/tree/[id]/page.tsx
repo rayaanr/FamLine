@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { TreeView } from '@/features/family-tree'
-import { requireTreeAccess } from '@/lib/auth-server'
+import { requireTreeView, toNamedTree } from '@/lib/tree-access'
 
 export const metadata: Metadata = {
   title: 'FamLine — Family Tree',
@@ -11,11 +11,12 @@ export default async function TreeByIdPage({
 }: {
   params: Promise<{ id: string }>
 }) {
-  await requireTreeAccess()
   const { id } = await params
+  const { tree, role } = await requireTreeView(id)
+
   return (
     <div className="h-screen w-screen overflow-hidden">
-      <TreeView treeId={id} />
+      <TreeView tree={toNamedTree(tree)} role={role} />
     </div>
   )
 }

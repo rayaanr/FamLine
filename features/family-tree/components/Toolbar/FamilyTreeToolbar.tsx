@@ -1,19 +1,25 @@
 'use client'
 
+import { useState } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import Link from 'next/link'
-import { UserPlus, Maximize, FlaskConical, Trash2, Expand, ArrowLeft, HelpCircle } from 'lucide-react'
+import { UserPlus, Maximize, FlaskConical, Trash2, Expand, ArrowLeft, HelpCircle, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useFamilyStore, useActiveTree } from '../../hooks/useFamilyStore'
+import { useTreeAccess } from '../../hooks/useTreeAccess'
 import { isPlaceholderPerson } from '../../utils/person'
+import { MembersDialog } from '../dialogs/MembersDialog'
 
 interface FamilyTreeToolbarProps {
   onAddPerson: () => void
+  canEdit: boolean
 }
 
-export function FamilyTreeToolbar({ onAddPerson }: FamilyTreeToolbarProps) {
+export function FamilyTreeToolbar({ onAddPerson, canEdit }: FamilyTreeToolbarProps) {
   const { fitView } = useReactFlow()
+  const { canManage } = useTreeAccess()
   const tree = useActiveTree()
+  const [membersOpen, setMembersOpen] = useState(false)
   const personCount = Object.keys(tree.people).length
   const collapsedCount = tree.collapsed.length
   const placeholders = Object.values(tree.people).filter(isPlaceholderPerson)
@@ -29,6 +35,7 @@ export function FamilyTreeToolbar({ onAddPerson }: FamilyTreeToolbarProps) {
   const expandAll = useFamilyStore((s) => s.expandAll)
 
   return (
+    <>
     <div className="flex items-center gap-2 rounded-xl border border-border bg-background/90 p-2 shadow-sm backdrop-blur-sm">
       <Button
         variant="ghost"
@@ -42,48 +49,52 @@ export function FamilyTreeToolbar({ onAddPerson }: FamilyTreeToolbarProps) {
         All trees
       </Button>
 
-      <div className="h-5 w-px bg-border" />
+      {canEdit && (
+        <>
+          <div className="h-5 w-px bg-border" />
 
-      <Button size="sm" onClick={onAddPerson} className="gap-1.5">
-        <UserPlus className="size-3.5" />
-        Add Person
-      </Button>
+          <Button size="sm" onClick={onAddPerson} className="gap-1.5">
+            <UserPlus className="size-3.5" />
+            Add Person
+          </Button>
 
-      <div className="h-5 w-px bg-border" />
+          <div className="h-5 w-px bg-border" />
 
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={() => { loadMockData(); setTimeout(() => fitView({ duration: 400 }), 50) }}
-        className="gap-1.5"
-        title="Load demo family"
-      >
-        <FlaskConical className="size-3.5" />
-      </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => { loadMockData(); setTimeout(() => fitView({ duration: 400 }), 50) }}
+            className="gap-1.5"
+            title="Load demo family"
+          >
+            <FlaskConical className="size-3.5" />
+          </Button>
 
-      {personCount > 0 && (
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          onClick={clearTree}
-          title="Clear tree"
-          className="text-muted-foreground hover:text-destructive"
-        >
-          <Trash2 className="size-3.5" />
-        </Button>
-      )}
+          {personCount > 0 && (
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              onClick={clearTree}
+              title="Clear tree"
+              className="text-muted-foreground hover:text-destructive"
+            >
+              <Trash2 className="size-3.5" />
+            </Button>
+          )}
 
-      {collapsedCount > 0 && (
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={expandAll}
-          title="Expand all collapsed branches"
-          className="gap-1.5 text-muted-foreground"
-        >
-          <Expand className="size-3.5" />
-          Expand all
-        </Button>
+          {collapsedCount > 0 && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={expandAll}
+              title="Expand all collapsed branches"
+              className="gap-1.5 text-muted-foreground"
+            >
+              <Expand className="size-3.5" />
+              Expand all
+            </Button>
+          )}
+        </>
       )}
 
       <div className="h-5 w-px bg-border" />
@@ -115,6 +126,31 @@ export function FamilyTreeToolbar({ onAddPerson }: FamilyTreeToolbarProps) {
           {personCount} {personCount === 1 ? 'person' : 'people'}
         </span>
       )}
+
+      {canManage && (
+        <>
+          <div className="h-5 w-px bg-border" />
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setMembersOpen(true)}
+            className="gap-1.5 text-muted-foreground"
+            title="Manage who can access this tree"
+          >
+            <Users className="size-3.5" />
+            Members
+          </Button>
+        </>
+      )}
     </div>
+
+    {canManage && (
+      <MembersDialog
+        treeId={tree.id}
+        open={membersOpen}
+        onClose={() => setMembersOpen(false)}
+      />
+    )}
+    </>
   )
 }
