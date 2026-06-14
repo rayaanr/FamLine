@@ -4,6 +4,7 @@ import {
   PutObjectCommand,
   GetObjectCommand,
   DeleteObjectCommand,
+  HeadObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
@@ -79,6 +80,27 @@ export function presignDownload(
     }),
     { expiresIn: PRESIGN_TTL },
   );
+}
+
+/**
+ * Returns the actual size and content-type of an object already in R2, or null
+ * if the object does not exist (upload never happened or failed).
+ */
+export async function headObject(
+  key: string,
+): Promise<{ contentLength: number; contentType: string } | null> {
+  const { client, bucket } = r2();
+  try {
+    const res = await client.send(
+      new HeadObjectCommand({ Bucket: bucket, Key: key }),
+    );
+    return {
+      contentLength: res.ContentLength ?? 0,
+      contentType: res.ContentType ?? "",
+    };
+  } catch {
+    return null;
+  }
 }
 
 /** Permanently remove an object. Best-effort; callers ignore "not found". */

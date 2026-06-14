@@ -14,6 +14,7 @@ import {
   presignUpload,
   presignDownload,
   deleteObject,
+  headObject,
   profileKey,
   documentKey,
   galleryKey,
@@ -109,10 +110,37 @@ export async function confirmUpload(
   spec: UploadSpec & { assetId: string },
 ): Promise<{ error?: string }> {
   const { session } = await requireTreeEdit(spec.treeId);
-  const err = validateSpec(spec);
-  if (err) return { error: err };
+  // Basic shape validation (kind, personId, fileName) — not size/type, those
+  // are verified against the actual object below.
+  if (!spec.fileName) return { error: "Missing file info" };
+  if (spec.kind === "profile" && !spec.personId) return { error: "Missing member" };
+  if (spec.kind === "document" && !spec.personId) return { error: "Missing member" };
 
   const key = keyFor(spec, spec.assetId);
+
+  // Verify what actually landed in R2 — never trust the client-reported size/type.
+  const meta = await headObject(key);
+  if (!meta) return { error: "Upload not found — please try again" };
+
+  const maxBytes = spec.kind === "document" ? MAX_DOC : MAX_IMAGE;
+  if (meta.contentLength > maxBytes) {
+    await deleteObject(key).catch(() => {});
+    return {
+      error:
+        spec.kind === "document" ? "File is larger than 25MB" : "Image is larger than 10MB",
+    };
+  }
+
+  const allowedTypes = spec.kind === "document" ? DOC_TYPES_MIME : IMAGE_TYPES;
+  if (!allowedTypes.has(meta.contentType)) {
+    await deleteObject(key).catch(() => {});
+    return {
+      error:
+        spec.kind === "document"
+          ? "Documents must be an image or PDF"
+          : "Photos must be an image",
+    };
+  }
 
   if (spec.kind === "profile") {
     const old = await db
@@ -144,8 +172,8 @@ export async function confirmUpload(
     docType: spec.kind === "document" ? (spec.docType ?? "other") : null,
     key,
     fileName: spec.fileName,
-    contentType: spec.contentType,
-    size: spec.size,
+    contentType: meta.contentType,
+    size: meta.contentLength,
     uploadedBy: session.user.id,
   });
 
