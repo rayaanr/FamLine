@@ -11,6 +11,9 @@ export interface Person {
   isDeceased: boolean
   gender: Gender
   notes?: string
+  // A structural connector you don't have details for yet (e.g. an unknown
+  // parent linking two known generations). Filled in later.
+  isPlaceholder?: boolean
 }
 
 export interface Couple {

@@ -27,8 +27,10 @@ import { useFamilyStore } from '../../hooks/useFamilyStore'
 import type { Person } from '../../types'
 
 const schema = z.object({
-  firstName: z.string().min(1, 'First name is required'),
-  lastName: z.string().min(1, 'Last name is required'),
+  // Names are optional: a nameless person is a placeholder ("Unknown") you can
+  // fill in later — useful when an intermediate relative isn't known yet.
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
   gender: z.enum(['male', 'female', 'other', 'unknown']),
   birthDate: z.string().optional(),
   deathDate: z.string().optional(),
@@ -61,7 +63,6 @@ export function AddPersonDialog({ open, onClose, editPerson }: AddPersonDialogPr
     control,
     reset,
     watch,
-    formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -102,21 +103,26 @@ export function AddPersonDialog({ open, onClose, editPerson }: AddPersonDialogPr
   }, [editPerson, reset, open])
 
   const onSubmit = (data: FormData) => {
+    const firstName = data.firstName?.trim() ?? ''
+    const lastName = data.lastName?.trim() ?? ''
+    // No name on record → treat as an unknown placeholder.
+    const isPlaceholder = !firstName && !lastName
+
+    const fields = {
+      firstName,
+      lastName,
+      gender: data.gender,
+      isDeceased: data.isDeceased,
+      isPlaceholder,
+      birthDate: data.birthDate || undefined,
+      deathDate: data.deathDate || undefined,
+      notes: data.notes || undefined,
+    }
+
     if (editPerson) {
-      updatePerson(editPerson.id, {
-        ...data,
-        birthDate: data.birthDate || undefined,
-        deathDate: data.deathDate || undefined,
-        notes: data.notes || undefined,
-      })
+      updatePerson(editPerson.id, fields)
     } else {
-      addPerson({
-        id: nanoid(),
-        ...data,
-        birthDate: data.birthDate || undefined,
-        deathDate: data.deathDate || undefined,
-        notes: data.notes || undefined,
-      })
+      addPerson({ id: nanoid(), ...fields })
     }
     onClose()
   }
@@ -132,29 +138,16 @@ export function AddPersonDialog({ open, onClose, editPerson }: AddPersonDialogPr
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="firstName">First Name</Label>
-              <Input
-                id="firstName"
-                placeholder="Alice"
-                {...register('firstName')}
-                aria-invalid={!!errors.firstName}
-              />
-              {errors.firstName && (
-                <p className="text-xs text-destructive">{errors.firstName.message}</p>
-              )}
+              <Input id="firstName" placeholder="Alice" {...register('firstName')} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="lastName">Last Name</Label>
-              <Input
-                id="lastName"
-                placeholder="Smith"
-                {...register('lastName')}
-                aria-invalid={!!errors.lastName}
-              />
-              {errors.lastName && (
-                <p className="text-xs text-destructive">{errors.lastName.message}</p>
-              )}
+              <Input id="lastName" placeholder="Smith" {...register('lastName')} />
             </div>
           </div>
+          <p className="-mt-2 text-xs text-muted-foreground">
+            Leave the name blank to add an unknown placeholder you can fill in later.
+          </p>
 
           <div className="space-y-1.5">
             <Label>Gender</Label>

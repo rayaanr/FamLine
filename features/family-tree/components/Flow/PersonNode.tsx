@@ -2,7 +2,7 @@
 
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import {
-  Plus, Heart, Baby, Crown, Minus,
+  Plus, Heart, Baby, Crown, Minus, HelpCircle,
   Mars, Venus, NonBinary, CircleHelp,
   type LucideIcon,
 } from 'lucide-react'
@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { calculateAge } from '../../utils/age'
+import { personDisplayName, personInitials, isPlaceholderPerson } from '../../utils/person'
 import type { PersonFlowNode } from '../../utils/layout'
 
 const genderStyles: Record<string, string> = {
@@ -47,9 +48,11 @@ const hiddenHandle = '!size-2.5 !opacity-0'
 
 export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
   const {
-    person, onOpenDetails, onAddSpouse, onAddChild, onAddParent,
+    person, onOpenDetails, onAddSpouse, onAddChild, onAddParent, onAddUnknown,
     hasChildren, isCollapsed, hiddenCount, onToggleCollapse,
   } = data
+
+  const isUnknown = isPlaceholderPerson(person)
 
   const birthYear = person.birthDate ? person.birthDate.slice(0, 4) : null
   const deathYear = person.deathDate ? person.deathDate.slice(0, 4) : null
@@ -58,9 +61,6 @@ export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
       ? `${birthYear} – ${deathYear}`
       : `b. ${birthYear}`
     : null
-
-  const initials =
-    `${person.firstName?.[0] ?? ''}${person.lastName?.[0] ?? ''}`.toUpperCase() || '?'
 
   const age = calculateAge(person.birthDate, person.isDeceased ? person.deathDate : undefined)
 
@@ -72,6 +72,7 @@ export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
       className={cn(
         'relative flex h-16 w-50 cursor-pointer flex-col justify-center rounded-xl border-2 bg-card px-3 shadow-sm transition-shadow hover:shadow-md',
         genderStyles[person.gender],
+        isUnknown && 'border-dashed bg-muted/40',
         person.isDeceased && 'opacity-60'
       )}
     >
@@ -86,32 +87,43 @@ export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
       <div className="flex items-center gap-2.5">
         <Avatar className={cn('shrink-0', avatarStyles[person.gender])}>
           <AvatarFallback className={cn('font-semibold', avatarStyles[person.gender])}>
-            {initials}
+            {personInitials(person)}
           </AvatarFallback>
         </Avatar>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <p className="truncate text-sm font-semibold leading-tight text-foreground">
-              {person.firstName} {person.lastName}
+            <p
+              className={cn(
+                'truncate text-sm font-semibold leading-tight text-foreground',
+                isUnknown && 'font-medium italic text-muted-foreground'
+              )}
+            >
+              {personDisplayName(person)}
             </p>
             <GenderIcon
               className={cn('size-3.5 shrink-0', genderIconColor[person.gender])}
               aria-label={person.gender}
             />
           </div>
-          {(dateStr || age !== null) && (
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              {dateStr}
-              {age !== null && (
-                <span className="text-muted-foreground/80">
-                  {dateStr ? ' · ' : ''}
-                  {person.isDeceased ? `aged ${age}` : `${age} yrs`}
-                </span>
+          {isUnknown ? (
+            <p className="mt-0.5 text-xs text-muted-foreground/80">needs info</p>
+          ) : (
+            <>
+              {(dateStr || age !== null) && (
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {dateStr}
+                  {age !== null && (
+                    <span className="text-muted-foreground/80">
+                      {dateStr ? ' · ' : ''}
+                      {person.isDeceased ? `aged ${age}` : `${age} yrs`}
+                    </span>
+                  )}
+                </p>
               )}
-            </p>
-          )}
-          {person.isDeceased && !deathYear && !dateStr && (
-            <p className="mt-0.5 text-xs text-muted-foreground">†</p>
+              {person.isDeceased && !deathYear && !dateStr && (
+                <p className="mt-0.5 text-xs text-muted-foreground">†</p>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -127,7 +139,7 @@ export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
             <Plus className="size-3.5" />
           </PopoverTrigger>
           <PopoverContent
-            className="nodrag nopan w-44 p-1"
+            className="nodrag nopan w-52 p-1"
             side="bottom"
             align="center"
             onClick={(e) => e.stopPropagation()}
@@ -152,6 +164,32 @@ export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
             >
               <Crown className="size-3.5 shrink-0 text-amber-400" />
               Add Parent
+            </button>
+
+            <div className="my-1 border-t border-border" />
+            <p className="px-2.5 pb-1 pt-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              Don&apos;t know them yet?
+            </p>
+            <button
+              onClick={() => onAddUnknown(person.id, 'partner')}
+              className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+            >
+              <HelpCircle className="size-3.5 shrink-0" />
+              Unknown partner
+            </button>
+            <button
+              onClick={() => onAddUnknown(person.id, 'parents')}
+              className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+            >
+              <HelpCircle className="size-3.5 shrink-0" />
+              Unknown parents
+            </button>
+            <button
+              onClick={() => onAddUnknown(person.id, 'child')}
+              className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+            >
+              <HelpCircle className="size-3.5 shrink-0" />
+              Unknown child
             </button>
           </PopoverContent>
         </Popover>

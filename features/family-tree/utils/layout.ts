@@ -16,6 +16,8 @@ const ROW_H = PERSON_H + ROW_GAP
 // Partners are kept directly adjacent with the couple node in the gap between.
 const PARTNER_OFFSET = PERSON_W / 2 + SPOUSE_GAP / 2
 
+export type UnknownRelativeKind = 'partner' | 'parents' | 'child'
+
 export interface PersonNodeData extends Record<string, unknown> {
   person: Person
   onEdit: (id: string) => void
@@ -23,6 +25,7 @@ export interface PersonNodeData extends Record<string, unknown> {
   onAddSpouse: (id: string) => void
   onAddChild: (id: string) => void
   onAddParent: (id: string) => void
+  onAddUnknown: (id: string, kind: UnknownRelativeKind) => void
   // Set only for single parents who have children (collapse-by-person).
   isCollapsed?: boolean
   hiddenCount?: number
@@ -58,6 +61,7 @@ export interface NodeCallbacks {
   onAddSpouse: (id: string) => void
   onAddChild: (id: string) => void
   onAddParent: (id: string) => void
+  onAddUnknown: (id: string, kind: UnknownRelativeKind) => void
   onEditCouple: (id: string) => void
   onToggleCollapse: (nodeId: string) => void
 }
@@ -383,6 +387,7 @@ export function buildGraphFromTree(
         onAddSpouse: callbacks.onAddSpouse,
         onAddChild: callbacks.onAddChild,
         onAddParent: callbacks.onAddParent,
+        onAddUnknown: callbacks.onAddUnknown,
         hasChildren: hasSoleKids,
         isCollapsed: personCollapsed(person.id),
         hiddenCount: hasSoleKids

@@ -22,6 +22,7 @@ import {
 import { useActiveTree } from '../hooks/useFamilyStore'
 import { calculateAge } from '../utils/age'
 import { getCloseRelations } from '../utils/relations'
+import { personDisplayName, personInitials, isPlaceholderPerson } from '../utils/person'
 import type { Person } from '../types'
 
 const genderIcon: Record<string, LucideIcon> = {
@@ -57,10 +58,6 @@ const badgeStyles: Record<string, string> = {
   female: 'border-pink-300 bg-pink-50 text-pink-700 hover:bg-pink-100 dark:border-pink-700 dark:bg-pink-950 dark:text-pink-200 dark:hover:bg-pink-900',
   other: 'border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100 dark:border-purple-700 dark:bg-purple-950 dark:text-purple-200 dark:hover:bg-purple-900',
   unknown: 'border-border bg-muted text-muted-foreground hover:bg-muted/70',
-}
-
-function initialsOf(p: Person) {
-  return `${p.firstName?.[0] ?? ''}${p.lastName?.[0] ?? ''}`.toUpperCase() || '?'
 }
 
 function formatDate(iso?: string) {
@@ -109,7 +106,7 @@ function RelationGroup({
             className={cn('cursor-pointer', badgeStyles[p.gender])}
             render={<button type="button" onClick={() => onSelect(p.id)} />}
           >
-            {p.firstName} {p.lastName}
+            {personDisplayName(p)}
           </Badge>
         ))}
       </div>
@@ -153,18 +150,22 @@ export function PersonDetailSheet({ onEdit }: { onEdit: (id: string) => void }) 
         {person && relations && (
           <>
             <SheetHeader className="flex-row items-center gap-3">
-              <Avatar size="lg" className={cn('shrink-0', avatarStyles[person.gender])}>
+              <Avatar
+                size="lg"
+                className={cn('shrink-0', avatarStyles[person.gender], isPlaceholderPerson(person) && 'border border-dashed border-border')}
+              >
                 <AvatarFallback className={cn('font-semibold', avatarStyles[person.gender])}>
-                  {initialsOf(person)}
+                  {personInitials(person)}
                 </AvatarFallback>
               </Avatar>
               <div className="min-w-0">
-                <SheetTitle className="truncate text-lg">
-                  {person.firstName} {person.lastName}
+                <SheetTitle className={cn('truncate text-lg', isPlaceholderPerson(person) && 'italic text-muted-foreground')}>
+                  {personDisplayName(person)}
                 </SheetTitle>
                 <SheetDescription className="flex items-center gap-1.5">
                   <GenderIcon className={cn('size-3.5', genderIconColor[person.gender])} />
                   {genderLabel[person.gender]}
+                  {isPlaceholderPerson(person) && <span className="text-muted-foreground">· Needs details</span>}
                   {person.isDeceased && <span className="text-muted-foreground">· Deceased †</span>}
                 </SheetDescription>
               </div>
@@ -218,7 +219,7 @@ export function PersonDetailSheet({ onEdit }: { onEdit: (id: string) => void }) 
             <SheetFooter>
               <Button onClick={handleEdit} variant="outline">
                 <Pencil />
-                Edit details
+                {isPlaceholderPerson(person) ? 'Add details' : 'Edit details'}
               </Button>
             </SheetFooter>
           </>

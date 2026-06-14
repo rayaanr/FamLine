@@ -2,9 +2,10 @@
 
 import { useReactFlow } from '@xyflow/react'
 import Link from 'next/link'
-import { UserPlus, Maximize, FlaskConical, Trash2, Expand, ArrowLeft } from 'lucide-react'
+import { UserPlus, Maximize, FlaskConical, Trash2, Expand, ArrowLeft, HelpCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useFamilyStore, useActiveTree } from '../../hooks/useFamilyStore'
+import { isPlaceholderPerson } from '../../utils/person'
 
 interface FamilyTreeToolbarProps {
   onAddPerson: () => void
@@ -15,6 +16,14 @@ export function FamilyTreeToolbar({ onAddPerson }: FamilyTreeToolbarProps) {
   const tree = useActiveTree()
   const personCount = Object.keys(tree.people).length
   const collapsedCount = tree.collapsed.length
+  const placeholders = Object.values(tree.people).filter(isPlaceholderPerson)
+
+  const focusPlaceholders = () =>
+    fitView({
+      nodes: placeholders.map((p) => ({ id: `person-${p.id}` })),
+      duration: 400,
+      padding: 0.3,
+    })
   const loadMockData = useFamilyStore((s) => s.loadMockData)
   const clearTree = useFamilyStore((s) => s.clearTree)
   const expandAll = useFamilyStore((s) => s.expandAll)
@@ -87,6 +96,19 @@ export function FamilyTreeToolbar({ onAddPerson }: FamilyTreeToolbarProps) {
       >
         <Maximize className="size-3.5" />
       </Button>
+
+      {placeholders.length > 0 && (
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={focusPlaceholders}
+          title="Zoom to people who still need details"
+          className="gap-1.5 text-amber-600 hover:text-amber-700 dark:text-amber-500"
+        >
+          <HelpCircle className="size-3.5" />
+          {placeholders.length} need{placeholders.length === 1 ? 's' : ''} details
+        </Button>
+      )}
 
       {personCount > 0 && (
         <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">

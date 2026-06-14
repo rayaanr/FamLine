@@ -16,6 +16,7 @@ import {
 } from '@xyflow/react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useQueryState } from 'nuqs'
+import { nanoid } from 'nanoid'
 import { useFamilyStore, useActiveTree, getActiveTree } from '../../hooks/useFamilyStore'
 import { useHydration } from '../../hooks/useHydration'
 import { buildGraphFromTree, type NodeCallbacks } from '../../utils/layout'
@@ -63,6 +64,9 @@ export function FamilyTreeCanvas() {
   const tree = useActiveTree()
   const { people, couples, parentChildren, collapsed: collapsedList } = tree
   const toggleCollapse = useFamilyStore((s) => s.toggleCollapse)
+  const addPerson = useFamilyStore((s) => s.addPerson)
+  const addCouple = useFamilyStore((s) => s.addCouple)
+  const addParentChild = useFamilyStore((s) => s.addParentChild)
 
   const collapsed = useMemo(() => new Set(collapsedList), [collapsedList])
 
@@ -96,6 +100,36 @@ export function FamilyTreeCanvas() {
     setRelDialog({ open: true, mode: 'parentChild', childId: id })
   }, [])
 
+  // One-click unknown relatives: create the placeholder person(s) and the
+  // relationship together, no form. Fill in details later.
+  const handleAddUnknown = useCallback(
+    (id: string, kind: 'partner' | 'parents' | 'child') => {
+      const makePlaceholder = () => {
+        const pid = nanoid()
+        addPerson({
+          id: pid,
+          firstName: '',
+          lastName: '',
+          gender: 'unknown',
+          isDeceased: false,
+          isPlaceholder: true,
+        })
+        return pid
+      }
+
+      if (kind === 'partner') {
+        addCouple({ id: nanoid(), partner1Id: id, partner2Id: makePlaceholder(), status: 'married' })
+      } else if (kind === 'child') {
+        addParentChild({ id: nanoid(), childId: makePlaceholder(), singleParentId: id, type: 'biological' })
+      } else {
+        const coupleId = nanoid()
+        addCouple({ id: coupleId, partner1Id: makePlaceholder(), partner2Id: makePlaceholder(), status: 'married' })
+        addParentChild({ id: nanoid(), childId: id, coupleId, type: 'biological' })
+      }
+    },
+    [addPerson, addCouple, addParentChild]
+  )
+
   const handleEditCouple = useCallback((_id: string) => {}, [])
 
   const callbacks: NodeCallbacks = useMemo(
@@ -105,10 +139,11 @@ export function FamilyTreeCanvas() {
       onAddSpouse: handleAddSpouse,
       onAddChild: handleAddChild,
       onAddParent: handleAddParent,
+      onAddUnknown: handleAddUnknown,
       onEditCouple: handleEditCouple,
       onToggleCollapse: toggleCollapse,
     }),
-    [handleEditPerson, handleOpenDetails, handleAddSpouse, handleAddChild, handleAddParent, handleEditCouple, toggleCollapse]
+    [handleEditPerson, handleOpenDetails, handleAddSpouse, handleAddChild, handleAddParent, handleAddUnknown, handleEditCouple, toggleCollapse]
   )
 
   const { nodes: layoutNodes, edges: layoutEdges } = useMemo(

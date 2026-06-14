@@ -118,9 +118,10 @@ export function FamilyTreeLegend() {
           </Section>
 
           <p className="border-t border-border pt-2 text-[11px] leading-snug text-muted-foreground">
-            Faded cards mark a deceased person. Click a card to view details, or use
+            Faded cards mark a deceased person; dashed cards are unknown placeholders
+            that still need details. Click a card to view details, or use
             <span className="font-medium text-foreground"> + </span>
-            to add a relative.
+            to add a relative (known or unknown).
           </p>
         </div>
       </CollapsibleContent>
