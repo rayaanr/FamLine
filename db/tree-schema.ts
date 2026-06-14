@@ -9,7 +9,13 @@ import {
   uniqueIndex,
   primaryKey,
 } from "drizzle-orm/pg-core";
-import type { FamilyTree } from "@/features/family-tree/types";
+import type {
+  FamilyTree,
+  TreeSettings,
+  MediaKind,
+  DocType,
+} from "@/features/family-tree/types";
+import { DEFAULT_TREE_SETTINGS } from "@/features/family-tree/types";
 import { user } from "./auth-schema";
 
 /**
@@ -25,12 +31,53 @@ export const trees = pgTable("trees", {
     .notNull()
     .references(() => user.id, { onDelete: "cascade" }),
   data: jsonb("data").$type<FamilyTree>().notNull(),
+  // Tree-level settings kept in their own column so the graph autosave (which
+  // overwrites `data` wholesale) never races with / clobbers them.
+  settings: jsonb("settings")
+    .$type<TreeSettings>()
+    .notNull()
+    .default(DEFAULT_TREE_SETTINGS),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
 });
+
+/**
+ * A file stored in R2 (Cloudflare) belonging to a tree: a member's profile
+ * photo, an identity document, or a gallery image. We keep only metadata here —
+ * the object itself lives in R2 under `key`. Deliberately a separate table (not
+ * inside `trees.data`) so uploads don't collide with the graph autosave.
+ */
+export const mediaAsset = pgTable(
+  "media_asset",
+  {
+    id: text("id").primaryKey(),
+    treeId: text("tree_id")
+      .notNull()
+      .references(() => trees.id, { onDelete: "cascade" }),
+    // The person within the tree this file belongs to. Null for gallery images.
+    personId: text("person_id"),
+    // "profile" | "document" | "gallery"
+    kind: text("kind").$type<MediaKind>().notNull(),
+    // Document category (birth_certificate | nic | passport | other); null unless kind = "document".
+    docType: text("doc_type").$type<DocType>(),
+    // The R2 object key (source of truth for the file).
+    key: text("key").notNull(),
+    fileName: text("file_name").notNull(),
+    contentType: text("content_type").notNull(),
+    size: integer("size").notNull(),
+    uploadedBy: text("uploaded_by")
+      .notNull()
+      .references(() => user.id),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("media_asset_treeId_idx").on(table.treeId),
+    index("media_asset_tree_person_idx").on(table.treeId, table.personId),
+  ],
+);
 
 /**
  * Per-tree collaborator roles. The creator's `owner` role lives on
@@ -87,6 +134,7 @@ export const treesRelations = relations(trees, ({ one, many }) => ({
   }),
   memberships: many(treeMembership),
   people: many(peopleIndex),
+  media: many(mediaAsset),
 }));
 
 export const treeMembershipRelations = relations(treeMembership, ({ one }) => ({
@@ -104,5 +152,16 @@ export const peopleIndexRelations = relations(peopleIndex, ({ one }) => ({
   tree: one(trees, {
     fields: [peopleIndex.treeId],
     references: [trees.id],
+  }),
+}));
+
+export const mediaAssetRelations = relations(mediaAsset, ({ one }) => ({
+  tree: one(trees, {
+    fields: [mediaAsset.treeId],
+    references: [trees.id],
+  }),
+  uploader: one(user, {
+    fields: [mediaAsset.uploadedBy],
+    references: [user.id],
   }),
 }));

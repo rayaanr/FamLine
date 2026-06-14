@@ -19,6 +19,7 @@ import { useQueryState } from 'nuqs'
 import { nanoid } from 'nanoid'
 import { useFamilyStore, useActiveTree, getActiveTree } from '../../hooks/useFamilyStore'
 import { useTreeAccess } from '../../hooks/useTreeAccess'
+import { ProfilePhotosProvider } from '../../hooks/useProfilePhotos'
 import { buildGraphFromTree, type NodeCallbacks } from '../../utils/layout'
 import { PersonNode } from './PersonNode'
 import { CoupleNode } from './CoupleNode'
@@ -161,7 +162,7 @@ export function FamilyTreeCanvas() {
   const isEmpty = Object.keys(people).length === 0
 
   return (
-    <>
+    <ProfilePhotosProvider treeId={tree.id}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -237,6 +238,6 @@ export function FamilyTreeCanvas() {
       />
 
       <PersonDetailSheet onEdit={handleEditPerson} />
-    </>
+    </ProfilePhotosProvider>
   )
 }

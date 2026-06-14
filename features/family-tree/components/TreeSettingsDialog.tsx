@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useEffect, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
@@ -25,10 +25,19 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { TREE_ROLE_LABELS } from '@/lib/permissions'
 import { useActiveTree, useFamilyStore } from '../hooks/useFamilyStore'
 import { useTreeAccess } from '../hooks/useTreeAccess'
 import { renameTree, deleteTree } from '../server/actions'
+import { getTreeSettings, updateTreeSettings } from '../server/media-actions'
+import type { DocumentVisibility } from '../types'
 import { TreeMembersSection } from './TreeMembersSection'
 
 const fmtDate = (iso: string) =>
@@ -55,8 +64,30 @@ export function TreeSettingsDialog({
   const [draft, setDraft] = useState(tree.name)
   const [clearOpen, setClearOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [docVisibility, setDocVisibility] = useState<DocumentVisibility>('editors')
 
   const peopleCount = Object.keys(tree.people).length
+
+  useEffect(() => {
+    if (!open || !canManage) return
+    getTreeSettings(tree.id)
+      .then((s) => setDocVisibility(s.documentVisibility))
+      .catch(() => {})
+  }, [open, canManage, tree.id])
+
+  const changeDocVisibility = (value: DocumentVisibility) => {
+    const prev = docVisibility
+    setDocVisibility(value)
+    startTransition(async () => {
+      const { error } = await updateTreeSettings(tree.id, { documentVisibility: value })
+      if (error) {
+        setDocVisibility(prev)
+        toast.error(error)
+        return
+      }
+      toast.success('Document visibility updated')
+    })
+  }
 
   const startRename = () => {
     setDraft(tree.name)
@@ -194,6 +225,29 @@ export function TreeSettingsDialog({
                   </dd>
                 </div>
               </dl>
+
+              {canManage && (
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">Document visibility</p>
+                    <p className="text-xs text-muted-foreground">
+                      Who can view members&apos; documents (passports, IDs, certificates).
+                    </p>
+                  </div>
+                  <Select
+                    value={docVisibility}
+                    onValueChange={(v) => changeDocVisibility(v as DocumentVisibility)}
+                  >
+                    <SelectTrigger className="w-36 shrink-0" disabled={pending}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="editors">Editors only</SelectItem>
+                      <SelectItem value="members">All members</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </TabsContent>
 
             {/* Members */}

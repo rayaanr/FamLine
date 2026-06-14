@@ -48,3 +48,44 @@ export interface NamedFamilyTree extends FamilyTree {
   createdAt: string
   updatedAt: string
 }
+
+// ── Media (profile photos, documents, gallery) ───────────────────────────────
+/** Who, beyond editors/owners, may view sensitive member documents. */
+export type DocumentVisibility = 'editors' | 'members'
+
+/** Per-tree settings, stored in its own DB column (never in the graph blob). */
+export interface TreeSettings {
+  documentVisibility: DocumentVisibility
+}
+
+export const DEFAULT_TREE_SETTINGS: TreeSettings = {
+  documentVisibility: 'editors',
+}
+
+/** What a stored file represents. */
+export type MediaKind = 'profile' | 'document' | 'gallery'
+
+/** Category for an identity document. */
+export type DocType = 'birth_certificate' | 'nic' | 'passport' | 'other'
+
+export const DOC_TYPES: DocType[] = ['birth_certificate', 'nic', 'passport', 'other']
+
+export const DOC_TYPE_LABELS: Record<DocType, string> = {
+  birth_certificate: 'Birth certificate',
+  nic: 'National ID',
+  passport: 'Passport',
+  other: 'Other',
+}
+
+/** A stored file, as returned to the client (with a fresh presigned `url`). */
+export interface MediaAssetView {
+  id: string
+  kind: MediaKind
+  docType: DocType | null
+  fileName: string
+  contentType: string
+  size: number
+  createdAt: string
+  /** Short-lived presigned GET URL for viewing/thumbnailing. */
+  url: string
+}

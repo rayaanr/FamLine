@@ -7,11 +7,12 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { calculateAge } from '../../utils/age'
 import { personDisplayName, personInitials, isPlaceholderPerson } from '../../utils/person'
 import { useTreeAccess } from '../../hooks/useTreeAccess'
+import { useProfilePhotos } from '../../hooks/useProfilePhotos'
 import type { PersonFlowNode } from '../../utils/layout'
 
 const genderStyles: Record<string, string> = {
@@ -54,6 +55,8 @@ export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
   } = data
 
   const { canEdit } = useTreeAccess()
+  const { photos } = useProfilePhotos()
+  const photoUrl = photos[person.id]
   const isUnknown = isPlaceholderPerson(person)
 
   const birthYear = person.birthDate ? person.birthDate.slice(0, 4) : null
@@ -88,6 +91,7 @@ export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
       {/* Person info */}
       <div className="flex items-center gap-2.5">
         <Avatar className={cn('shrink-0', avatarStyles[person.gender])}>
+          {photoUrl && <AvatarImage src={photoUrl} alt={personDisplayName(person)} />}
           <AvatarFallback className={cn('font-semibold', avatarStyles[person.gender])}>
             {personInitials(person)}
           </AvatarFallback>
