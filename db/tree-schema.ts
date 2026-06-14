@@ -46,7 +46,7 @@ export const trees = pgTable("trees", {
 
 /**
  * A file stored in R2 (Cloudflare) belonging to a tree: a member's profile
- * photo, an identity document, or a gallery image. We keep only metadata here —
+ * photo, an identity document, or a gallery image. We keep only metadata here -
  * the object itself lives in R2 under `key`. Deliberately a separate table (not
  * inside `trees.data`) so uploads don't collide with the graph autosave.
  */
@@ -106,13 +106,13 @@ export const treeMembership = pgTable(
 
 /**
  * Denormalized, searchable index of every person in a tree. Fully rebuilt from
- * `trees.data.people` on each save, so it is derived state — never the source
+ * `trees.data.people` on each save, so it is derived state - never the source
  * of truth.
  */
 export const peopleIndex = pgTable(
   "people_index",
   {
-    // The person's id *within its tree* — unique per tree, not globally.
+    // The person's id *within its tree* - unique per tree, not globally.
     id: text("id").notNull(),
     treeId: text("tree_id")
       .notNull()

@@ -8,7 +8,7 @@ import {
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 /**
- * Cloudflare R2 (S3-compatible) access. The bucket is private — nothing is ever
+ * Cloudflare R2 (S3-compatible) access. The bucket is private - nothing is ever
  * served publicly. Browsers upload and download directly via short-lived
  * presigned URLs minted here on the server, so files never pass through Next.
  */
@@ -17,7 +17,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 const PRESIGN_TTL = 300;
 
 // Lazily created so a missing/placeholder config only fails when R2 is actually
-// used (not at import time — which would crash unrelated pages and the build).
+// used (not at import time - which would crash unrelated pages and the build).
 let cached: { client: S3Client; bucket: string } | null = null;
 
 function r2(): { client: S3Client; bucket: string } {
@@ -41,11 +41,18 @@ function r2(): { client: S3Client; bucket: string } {
 }
 
 /** Presigned PUT URL the browser uploads to directly. */
-export function presignUpload(key: string, contentType: string): Promise<string> {
+export function presignUpload(
+  key: string,
+  contentType: string,
+): Promise<string> {
   const { client, bucket } = r2();
   return getSignedUrl(
     client,
-    new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: contentType }),
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      ContentType: contentType,
+    }),
     { expiresIn: PRESIGN_TTL, signableHeaders: new Set(["content-type"]) },
   );
 }
@@ -92,14 +99,28 @@ export function extOf(fileName: string): string {
   return m ? m[1].toLowerCase() : "bin";
 }
 
-export function profileKey(treeId: string, personId: string, assetId: string, ext: string): string {
+export function profileKey(
+  treeId: string,
+  personId: string,
+  assetId: string,
+  ext: string,
+): string {
   return `trees/${treeId}/members/${personId}/profile/${assetId}.${ext}`;
 }
 
-export function documentKey(treeId: string, personId: string, assetId: string, ext: string): string {
+export function documentKey(
+  treeId: string,
+  personId: string,
+  assetId: string,
+  ext: string,
+): string {
   return `trees/${treeId}/members/${personId}/documents/${assetId}.${ext}`;
 }
 
-export function galleryKey(treeId: string, assetId: string, ext: string): string {
+export function galleryKey(
+  treeId: string,
+  assetId: string,
+  ext: string,
+): string {
   return `trees/${treeId}/gallery/${assetId}.${ext}`;
 }

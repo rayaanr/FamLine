@@ -1,18 +1,18 @@
-import type { Metadata } from 'next'
-import Image from 'next/image'
-import Link from 'next/link'
+import type { Metadata } from "next";
+import Image from "next/image";
+import Link from "next/link";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'
-import { SignupForm } from '@/components/auth/SignupForm'
+} from "@/components/ui/card";
+import { SignupForm } from "@/components/auth/SignupForm";
 
 export const metadata: Metadata = {
-  title: 'Create account — FamLine',
-}
+  title: "Create account - FamLine",
+};
 
 export default function SignupPage() {
   return (
@@ -31,5 +31,5 @@ export default function SignupPage() {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

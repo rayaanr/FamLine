@@ -1,7 +1,7 @@
-'use client'
+"use client";
 
-import { getStraightPath, BaseEdge, type EdgeProps } from '@xyflow/react'
-import type { SpouseFlowEdge } from '../../utils/layout'
+import { getStraightPath, BaseEdge, type EdgeProps } from "@xyflow/react";
+import type { SpouseFlowEdge } from "../../utils/layout";
 
 export function SpouseEdge({
   sourceX,
@@ -10,14 +10,14 @@ export function SpouseEdge({
   targetY,
   id,
 }: EdgeProps<SpouseFlowEdge>) {
-  const [edgePath] = getStraightPath({ sourceX, sourceY, targetX, targetY })
+  const [edgePath] = getStraightPath({ sourceX, sourceY, targetX, targetY });
 
-  // Plain connector — both partners link to the couple node symmetrically.
+  // Plain connector - both partners link to the couple node symmetrically.
   return (
     <BaseEdge
       id={id}
       path={edgePath}
-      style={{ stroke: '#94a3b8', strokeWidth: 2 }}
+      style={{ stroke: "#94a3b8", strokeWidth: 2 }}
     />
-  )
+  );
 }

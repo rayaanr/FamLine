@@ -1,19 +1,19 @@
-'use client'
+"use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
-import { ImagePlus, Trash2, Loader2, Images } from 'lucide-react'
-import { toast } from 'sonner'
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { ImagePlus, Trash2, Loader2, Images } from "lucide-react";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { useMediaUpload } from '../../hooks/useMediaUpload'
-import { listGallery, deleteMedia } from '../../server/media-actions'
-import type { MediaAssetView } from '../../types'
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { useMediaUpload } from "../../hooks/useMediaUpload";
+import { listGallery, deleteMedia } from "../../server/media-actions";
+import type { MediaAssetView } from "../../types";
 
 export function TreeGallery({
   open,
@@ -21,61 +21,63 @@ export function TreeGallery({
   treeId,
   canEdit,
 }: {
-  open: boolean
-  onClose: () => void
-  treeId: string
-  canEdit: boolean
+  open: boolean;
+  onClose: () => void;
+  treeId: string;
+  canEdit: boolean;
 }) {
-  // `null` = not loaded yet (drives the spinner) — avoids a synchronous
+  // `null` = not loaded yet (drives the spinner) - avoids a synchronous
   // setState in the open effect.
-  const [items, setItems] = useState<MediaAssetView[] | null>(null)
-  const { upload, uploading } = useMediaUpload()
-  const [pending, startTransition] = useTransition()
-  const fileInput = useRef<HTMLInputElement>(null)
+  const [items, setItems] = useState<MediaAssetView[] | null>(null);
+  const { upload, uploading } = useMediaUpload();
+  const [pending, startTransition] = useTransition();
+  const fileInput = useRef<HTMLInputElement>(null);
 
   const refresh = useCallback(() => {
     listGallery(treeId)
       .then(setItems)
-      .catch(() => {})
-  }, [treeId])
+      .catch(() => {});
+  }, [treeId]);
 
   useEffect(() => {
-    if (open) refresh()
-  }, [open, refresh])
+    if (open) refresh();
+  }, [open, refresh]);
 
-  const loading = items === null
+  const loading = items === null;
 
   const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? [])
-    e.target.value = ''
-    if (files.length === 0) return
-    let added = 0
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    if (files.length === 0) return;
+    let added = 0;
     for (const file of files) {
-      const ok = await upload(file, { treeId, kind: 'gallery' })
-      if (ok) added++
+      const ok = await upload(file, { treeId, kind: "gallery" });
+      if (ok) added++;
     }
     if (added > 0) {
-      toast.success(added === 1 ? 'Photo added' : `${added} photos added`)
-      refresh()
+      toast.success(added === 1 ? "Photo added" : `${added} photos added`);
+      refresh();
     }
-  }
+  };
 
   const remove = (id: string) =>
     startTransition(async () => {
-      const { error } = await deleteMedia(id)
+      const { error } = await deleteMedia(id);
       if (error) {
-        toast.error(error)
-        return
+        toast.error(error);
+        return;
       }
-      setItems((prev) => prev?.filter((i) => i.id !== id) ?? prev)
-    })
+      setItems((prev) => prev?.filter((i) => i.id !== id) ?? prev);
+    });
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Family gallery</DialogTitle>
-          <DialogDescription>Shared photos for this family tree.</DialogDescription>
+          <DialogDescription>
+            Shared photos for this family tree.
+          </DialogDescription>
         </DialogHeader>
 
         {canEdit && (
@@ -148,5 +150,5 @@ export function TreeGallery({
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

@@ -16,7 +16,7 @@ export default function Home() {
         <Image src="/Logo.svg" alt="FamLine" width={72} height={102} />
         <h1 className="text-4xl font-bold tracking-tight text-foreground">FamLine</h1>
         <p className="max-w-sm text-muted-foreground">
-          Build and explore your family tree — add members, map relationships, and preserve your family history.
+          Build and explore your family tree - add members, map relationships, and preserve your family history.
         </p>
         <Link
           href="/tree"

@@ -1,23 +1,26 @@
-import type { Metadata } from 'next'
-import Image from 'next/image'
-import Link from 'next/link'
-import { TreeGallery } from '@/features/family-tree'
-import { UserMenu } from '@/components/auth/UserMenu'
-import { requireAuth } from '@/lib/auth-server'
-import { listAccessibleTrees } from '@/lib/tree-access'
+import type { Metadata } from "next";
+import Image from "next/image";
+import Link from "next/link";
+import { TreeGallery } from "@/features/family-tree";
+import { UserMenu } from "@/components/auth/UserMenu";
+import { requireAuth } from "@/lib/auth-server";
+import { listAccessibleTrees } from "@/lib/tree-access";
 
 export const metadata: Metadata = {
-  title: 'FamLine — Your Family Trees',
-}
+  title: "FamLine - Your Family Trees",
+};
 
 export default async function TreePage() {
-  await requireAuth()
-  const trees = await listAccessibleTrees()
+  await requireAuth();
+  const trees = await listAccessibleTrees();
 
   return (
     <div className="min-h-screen bg-background">
       <header className="flex items-center justify-between border-b px-6 py-3">
-        <Link href="/" className="flex items-center gap-2 font-heading text-lg font-bold text-foreground">
+        <Link
+          href="/"
+          className="flex items-center gap-2 font-heading text-lg font-bold text-foreground"
+        >
           <Image src="/Logo.svg" alt="" width={20} height={28} />
           FamLine
         </Link>
@@ -25,5 +28,5 @@ export default async function TreePage() {
       </header>
       <TreeGallery initialTrees={trees} />
     </div>
-  )
+  );
 }

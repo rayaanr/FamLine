@@ -1,82 +1,80 @@
-'use client'
+"use client";
 
-import { useEffect } from 'react'
-import { useForm, Controller } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
-import { nanoid } from 'nanoid'
+import { useEffect } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { nanoid } from "nanoid";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Button } from '@/components/ui/button'
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { DatePicker } from '@/components/ui/date-picker'
-import { useFamilyStore } from '../../hooks/useFamilyStore'
-import type { Person } from '../../types'
+} from "@/components/ui/select";
+import { DatePicker } from "@/components/ui/date-picker";
+import { useFamilyStore } from "../../hooks/useFamilyStore";
+import type { Person } from "../../types";
 
 const schema = z.object({
   // Names are optional: a nameless person is a placeholder ("Unknown") you can
-  // fill in later — useful when an intermediate relative isn't known yet.
+  // fill in later - useful when an intermediate relative isn't known yet.
   firstName: z.string().optional(),
   lastName: z.string().optional(),
-  gender: z.enum(['male', 'female', 'other', 'unknown']),
+  gender: z.enum(["male", "female", "other", "unknown"]),
   birthDate: z.string().optional(),
   deathDate: z.string().optional(),
   isDeceased: z.boolean(),
   notes: z.string().optional(),
-})
+});
 
-type FormData = z.infer<typeof schema>
+type FormData = z.infer<typeof schema>;
 
 const genderLabels: Record<string, string> = {
-  male: 'Male',
-  female: 'Female',
-  other: 'Other',
-  unknown: 'Unknown',
-}
+  male: "Male",
+  female: "Female",
+  other: "Other",
+  unknown: "Unknown",
+};
 
 interface AddPersonDialogProps {
-  open: boolean
-  onClose: () => void
-  editPerson?: Person
+  open: boolean;
+  onClose: () => void;
+  editPerson?: Person;
 }
 
-export function AddPersonDialog({ open, onClose, editPerson }: AddPersonDialogProps) {
-  const addPerson = useFamilyStore((s) => s.addPerson)
-  const updatePerson = useFamilyStore((s) => s.updatePerson)
+export function AddPersonDialog({
+  open,
+  onClose,
+  editPerson,
+}: AddPersonDialogProps) {
+  const addPerson = useFamilyStore((s) => s.addPerson);
+  const updatePerson = useFamilyStore((s) => s.updatePerson);
 
-  const {
-    register,
-    handleSubmit,
-    control,
-    reset,
-    watch,
-  } = useForm<FormData>({
+  const { register, handleSubmit, control, reset, watch } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
-      firstName: '',
-      lastName: '',
-      gender: 'unknown',
-      birthDate: '',
-      deathDate: '',
+      firstName: "",
+      lastName: "",
+      gender: "unknown",
+      birthDate: "",
+      deathDate: "",
       isDeceased: false,
-      notes: '',
+      notes: "",
     },
-  })
+  });
 
-  const isDeceased = watch('isDeceased')
+  const isDeceased = watch("isDeceased");
 
   useEffect(() => {
     if (editPerson) {
@@ -84,29 +82,29 @@ export function AddPersonDialog({ open, onClose, editPerson }: AddPersonDialogPr
         firstName: editPerson.firstName,
         lastName: editPerson.lastName,
         gender: editPerson.gender,
-        birthDate: editPerson.birthDate ?? '',
-        deathDate: editPerson.deathDate ?? '',
+        birthDate: editPerson.birthDate ?? "",
+        deathDate: editPerson.deathDate ?? "",
         isDeceased: editPerson.isDeceased,
-        notes: editPerson.notes ?? '',
-      })
+        notes: editPerson.notes ?? "",
+      });
     } else {
       reset({
-        firstName: '',
-        lastName: '',
-        gender: 'unknown',
-        birthDate: '',
-        deathDate: '',
+        firstName: "",
+        lastName: "",
+        gender: "unknown",
+        birthDate: "",
+        deathDate: "",
         isDeceased: false,
-        notes: '',
-      })
+        notes: "",
+      });
     }
-  }, [editPerson, reset, open])
+  }, [editPerson, reset, open]);
 
   const onSubmit = (data: FormData) => {
-    const firstName = data.firstName?.trim() ?? ''
-    const lastName = data.lastName?.trim() ?? ''
+    const firstName = data.firstName?.trim() ?? "";
+    const lastName = data.lastName?.trim() ?? "";
     // No name on record → treat as an unknown placeholder.
-    const isPlaceholder = !firstName && !lastName
+    const isPlaceholder = !firstName && !lastName;
 
     const fields = {
       firstName,
@@ -117,36 +115,45 @@ export function AddPersonDialog({ open, onClose, editPerson }: AddPersonDialogPr
       birthDate: data.birthDate || undefined,
       deathDate: data.deathDate || undefined,
       notes: data.notes || undefined,
-    }
+    };
 
     if (editPerson) {
-      updatePerson(editPerson.id, fields)
+      updatePerson(editPerson.id, fields);
     } else {
-      addPerson({ id: nanoid(), ...fields })
+      addPerson({ id: nanoid(), ...fields });
     }
-    onClose()
-  }
+    onClose();
+  };
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{editPerson ? 'Edit Person' : 'Add Person'}</DialogTitle>
+          <DialogTitle>{editPerson ? "Edit Person" : "Add Person"}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="firstName">First Name</Label>
-              <Input id="firstName" placeholder="Alice" {...register('firstName')} />
+              <Input
+                id="firstName"
+                placeholder="Alice"
+                {...register("firstName")}
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="lastName">Last Name</Label>
-              <Input id="lastName" placeholder="Smith" {...register('lastName')} />
+              <Input
+                id="lastName"
+                placeholder="Smith"
+                {...register("lastName")}
+              />
             </div>
           </div>
           <p className="-mt-2 text-xs text-muted-foreground">
-            Leave the name blank to add an unknown placeholder you can fill in later.
+            Leave the name blank to add an unknown placeholder you can fill in
+            later.
           </p>
 
           <div className="space-y-1.5">
@@ -191,9 +198,11 @@ export function AddPersonDialog({ open, onClose, editPerson }: AddPersonDialogPr
             </div>
             <div className="space-y-1.5">
               <Label>
-                Death Date{' '}
+                Death Date{" "}
                 {!isDeceased && (
-                  <span className="text-muted-foreground font-normal">(optional)</span>
+                  <span className="text-muted-foreground font-normal">
+                    (optional)
+                  </span>
                 )}
               </Label>
               <Controller
@@ -216,21 +225,27 @@ export function AddPersonDialog({ open, onClose, editPerson }: AddPersonDialogPr
               id="isDeceased"
               type="checkbox"
               className="h-4 w-4 rounded border-border"
-              {...register('isDeceased')}
+              {...register("isDeceased")}
             />
             <Label htmlFor="isDeceased">Deceased</Label>
           </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="notes">Notes</Label>
-            <Input id="notes" placeholder="Optional notes..." {...register('notes')} />
+            <Input
+              id="notes"
+              placeholder="Optional notes..."
+              {...register("notes")}
+            />
           </div>
 
           <DialogFooter>
-            <Button type="submit">{editPerson ? 'Save Changes' : 'Add Person'}</Button>
+            <Button type="submit">
+              {editPerson ? "Save Changes" : "Add Person"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

@@ -1,19 +1,19 @@
-import { Suspense } from 'react'
-import type { Metadata } from 'next'
-import Image from 'next/image'
-import Link from 'next/link'
+import { Suspense } from "react";
+import type { Metadata } from "next";
+import Image from "next/image";
+import Link from "next/link";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'
-import { LoginForm } from '@/components/auth/LoginForm'
+} from "@/components/ui/card";
+import { LoginForm } from "@/components/auth/LoginForm";
 
 export const metadata: Metadata = {
-  title: 'Sign in — FamLine',
-}
+  title: "Sign in - FamLine",
+};
 
 export default function LoginPage() {
   return (
@@ -34,5 +34,5 @@ export default function LoginPage() {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

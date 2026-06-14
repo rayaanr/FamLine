@@ -1,41 +1,54 @@
-'use client'
+"use client";
 
 import {
-  ChevronDown, Info,
-  Mars, Venus, NonBinary, CircleHelp,
-  Heart, HeartHandshake, Unlink, HeartCrack,
+  ChevronDown,
+  Info,
+  Mars,
+  Venus,
+  NonBinary,
+  CircleHelp,
+  Heart,
+  HeartHandshake,
+  Unlink,
+  HeartCrack,
   type LucideIcon,
-} from 'lucide-react'
-import { cn } from '@/lib/utils'
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from '@/components/ui/collapsible'
+} from "@/components/ui/collapsible";
 
 // Keep these in sync with PersonNode (gender), CoupleNode (status) and
-// ParentChildEdge (parentage) — they mirror the icons/colors used on the canvas.
+// ParentChildEdge (parentage) - they mirror the icons/colors used on the canvas.
 const genderItems: { label: string; icon: LucideIcon; color: string }[] = [
-  { label: 'Male', icon: Mars, color: 'text-blue-500' },
-  { label: 'Female', icon: Venus, color: 'text-pink-500' },
-  { label: 'Other', icon: NonBinary, color: 'text-purple-500' },
-  { label: 'Unknown', icon: CircleHelp, color: 'text-muted-foreground' },
-]
+  { label: "Male", icon: Mars, color: "text-blue-500" },
+  { label: "Female", icon: Venus, color: "text-pink-500" },
+  { label: "Other", icon: NonBinary, color: "text-purple-500" },
+  { label: "Unknown", icon: CircleHelp, color: "text-muted-foreground" },
+];
 
 const statusItems: { label: string; icon: LucideIcon; color: string }[] = [
-  { label: 'Married', icon: Heart, color: 'text-green-500' },
-  { label: 'Partnered', icon: HeartHandshake, color: 'text-blue-500' },
-  { label: 'Separated', icon: Unlink, color: 'text-amber-500' },
-  { label: 'Divorced', icon: HeartCrack, color: 'text-red-500' },
-]
+  { label: "Married", icon: Heart, color: "text-green-500" },
+  { label: "Partnered", icon: HeartHandshake, color: "text-blue-500" },
+  { label: "Separated", icon: Unlink, color: "text-amber-500" },
+  { label: "Divorced", icon: HeartCrack, color: "text-red-500" },
+];
 
 const lineItems = [
-  { label: 'Biological', stroke: '#64748b', dash: undefined },
-  { label: 'Adopted', stroke: '#8b5cf6', dash: '6 4' },
-  { label: 'Step', stroke: '#f59e0b', dash: '2 6' },
-]
+  { label: "Biological", stroke: "#64748b", dash: undefined },
+  { label: "Adopted", stroke: "#8b5cf6", dash: "6 4" },
+  { label: "Step", stroke: "#f59e0b", dash: "2 6" },
+];
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="space-y-1.5">
       <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -43,16 +56,18 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       </p>
       <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">{children}</div>
     </div>
-  )
+  );
 }
 
 function Row({ swatch, label }: { swatch: React.ReactNode; label: string }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="flex w-7 shrink-0 items-center justify-center">{swatch}</span>
+      <span className="flex w-7 shrink-0 items-center justify-center">
+        {swatch}
+      </span>
       <span className="text-xs text-foreground">{label}</span>
     </div>
-  )
+  );
 }
 
 export function FamilyTreeLegend() {
@@ -76,7 +91,7 @@ export function FamilyTreeLegend() {
               <Row
                 key={g.label}
                 label={g.label}
-                swatch={<g.icon className={cn('size-3.5', g.color)} />}
+                swatch={<g.icon className={cn("size-3.5", g.color)} />}
               />
             ))}
           </Section>
@@ -88,7 +103,10 @@ export function FamilyTreeLegend() {
                 label={s.label}
                 swatch={
                   <span className="flex size-5 items-center justify-center rounded-full border border-border bg-background">
-                    <s.icon className={cn('size-3', s.color)} fill="currentColor" />
+                    <s.icon
+                      className={cn("size-3", s.color)}
+                      fill="currentColor"
+                    />
                   </span>
                 }
               />
@@ -118,13 +136,14 @@ export function FamilyTreeLegend() {
           </Section>
 
           <p className="border-t border-border pt-2 text-[11px] leading-snug text-muted-foreground">
-            Faded cards mark a deceased person; dashed cards are unknown placeholders
-            that still need details. Click a card to view details, or use
+            Faded cards mark a deceased person; dashed cards are unknown
+            placeholders that still need details. Click a card to view details,
+            or use
             <span className="font-medium text-foreground"> + </span>
             to add a relative (known or unknown).
           </p>
         </div>
       </CollapsibleContent>
     </Collapsible>
-  )
+  );
 }

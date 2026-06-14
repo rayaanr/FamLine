@@ -1,37 +1,40 @@
-import type { Metadata } from 'next'
-import { headers } from 'next/headers'
-import Link from 'next/link'
+import type { Metadata } from "next";
+import { headers } from "next/headers";
+import Link from "next/link";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'
-import { UserMenu } from '@/components/auth/UserMenu'
+} from "@/components/ui/card";
+import { UserMenu } from "@/components/auth/UserMenu";
 import {
   UserManagement,
   type AdminUser,
-} from '@/components/admin/UserManagement'
-import { auth } from '@/lib/auth'
-import { requireSuperAdmin } from '@/lib/auth-server'
+} from "@/components/admin/UserManagement";
+import { auth } from "@/lib/auth";
+import { requireSuperAdmin } from "@/lib/auth-server";
 
 export const metadata: Metadata = {
-  title: 'User management — FamLine',
-}
+  title: "User management - FamLine",
+};
 
 export default async function AdminPage() {
-  const session = await requireSuperAdmin()
+  const session = await requireSuperAdmin();
 
   const { users } = await auth.api.listUsers({
     headers: await headers(),
-    query: { limit: 200, sortBy: 'createdAt', sortDirection: 'desc' },
-  })
+    query: { limit: 200, sortBy: "createdAt", sortDirection: "desc" },
+  });
 
   return (
     <div className="min-h-screen bg-background">
       <header className="flex items-center justify-between border-b px-6 py-3">
-        <Link href="/" className="font-heading text-lg font-bold text-foreground">
+        <Link
+          href="/"
+          className="font-heading text-lg font-bold text-foreground"
+        >
           FamLine
         </Link>
         <UserMenu />
@@ -55,5 +58,5 @@ export default async function AdminPage() {
         </Card>
       </main>
     </div>
-  )
+  );
 }

@@ -3,7 +3,7 @@ import { adminAc, defaultStatements } from "better-auth/plugins/admin/access";
 
 /**
  * Access-control statement for Better Auth's admin plugin. Only the global
- * `super_admin` carries elevated (account-management) permissions — per-tree
+ * `super_admin` carries elevated (account-management) permissions - per-tree
  * capabilities are NOT modelled here; they live in the tree-role helpers below
  * and are enforced in `lib/tree-access.ts`.
  */
@@ -31,7 +31,7 @@ export const GLOBAL_ROLE_LABELS: Record<GlobalRole, string> = {
   super_admin: "Super Admin",
 };
 
-/** System administrator — global visibility over all users and all trees. */
+/** System administrator - global visibility over all users and all trees. */
 export const isSuperAdmin = (role?: string | null) => role === "super_admin";
 
 // ── Per-tree roles ─────────────────────────────────────────────────────────
@@ -57,13 +57,13 @@ export const TREE_ROLE_LABELS: Record<TreeRole, string> = {
 const treeRankOf = (role?: TreeRole | null) =>
   role ? TREE_ROLE_RANK[role] : -1;
 
-/** Has any role on the tree — required to view it. */
+/** Has any role on the tree - required to view it. */
 export const canViewTree = (role?: TreeRole | null) => treeRankOf(role) >= 0;
 
-/** At least EDITOR — required to edit tree content. */
+/** At least EDITOR - required to edit tree content. */
 export const canEditTree = (role?: TreeRole | null) =>
   treeRankOf(role) >= TREE_ROLE_RANK.editor;
 
-/** OWNER — required to rename/delete the tree and manage its members. */
+/** OWNER - required to rename/delete the tree and manage its members. */
 export const canManageTree = (role?: TreeRole | null) =>
   treeRankOf(role) >= TREE_ROLE_RANK.owner;
