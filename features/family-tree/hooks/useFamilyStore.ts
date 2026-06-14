@@ -22,6 +22,12 @@ interface FamilyStoreState {
   addPerson: (person: Person) => void
   updatePerson: (id: string, updates: Partial<Person>) => void
   removePerson: (id: string) => void
+  // Remove several people at once (and any couples / parent-child links that
+  // depended on them). Used to delete a whole branch.
+  removePeople: (ids: string[]) => void
+  // Wipe a person's identity but keep their node + relationships, turning them
+  // into an "Unknown" placeholder so the surrounding tree stays connected.
+  convertToPlaceholder: (id: string) => void
   addCouple: (couple: Couple) => void
   updateCouple: (id: string, updates: Partial<Couple>) => void
   removeCouple: (id: string) => void
@@ -144,6 +150,59 @@ export const useFamilyStore = create<FamilyStoreState>()(
               )
             )
             return { people, couples, parentChildren }
+          }),
+
+        removePeople: (ids) =>
+          patchActive((t) => {
+            const idSet = new Set(ids)
+            const people = Object.fromEntries(
+              Object.entries(t.people).filter(([pid]) => !idSet.has(pid))
+            )
+            const removedCoupleIds = new Set(
+              Object.keys(t.couples).filter(
+                (cid) =>
+                  idSet.has(t.couples[cid].partner1Id) || idSet.has(t.couples[cid].partner2Id)
+              )
+            )
+            const couples = Object.fromEntries(
+              Object.entries(t.couples).filter(([cid]) => !removedCoupleIds.has(cid))
+            )
+            const parentChildren = Object.fromEntries(
+              Object.entries(t.parentChildren).filter(
+                ([, pc]) =>
+                  !idSet.has(pc.childId) &&
+                  !(pc.singleParentId && idSet.has(pc.singleParentId)) &&
+                  !(pc.coupleId && removedCoupleIds.has(pc.coupleId))
+              )
+            )
+            const collapsed = t.collapsed.filter((key) => {
+              if (key.startsWith('person-')) return !idSet.has(key.slice('person-'.length))
+              if (key.startsWith('couple-')) return !removedCoupleIds.has(key.slice('couple-'.length))
+              return true
+            })
+            return { people, couples, parentChildren, collapsed }
+          }),
+
+        convertToPlaceholder: (id) =>
+          patchActive((t) => {
+            const p = t.people[id]
+            if (!p) return {}
+            return {
+              people: {
+                ...t.people,
+                [id]: {
+                  ...p,
+                  firstName: '',
+                  lastName: '',
+                  gender: 'unknown',
+                  isDeceased: false,
+                  birthDate: undefined,
+                  deathDate: undefined,
+                  notes: undefined,
+                  isPlaceholder: true,
+                },
+              },
+            }
           }),
 
         addCouple: (couple) =>

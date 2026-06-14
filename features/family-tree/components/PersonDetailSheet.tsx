@@ -1,8 +1,9 @@
 'use client'
 
+import { useState } from 'react'
 import { useQueryState } from 'nuqs'
 import {
-  Pencil, Cake, Calendar, StickyNote, Hourglass, Users,
+  Pencil, Cake, Calendar, StickyNote, Hourglass, Users, Trash2,
   Mars, Venus, NonBinary, CircleHelp,
   type LucideIcon,
 } from 'lucide-react'
@@ -23,6 +24,7 @@ import { useActiveTree } from '../hooks/useFamilyStore'
 import { calculateAge } from '../utils/age'
 import { getCloseRelations } from '../utils/relations'
 import { personDisplayName, personInitials, isPlaceholderPerson } from '../utils/person'
+import { DeletePersonDialog } from './dialogs/DeletePersonDialog'
 import type { Person } from '../types'
 
 const genderIcon: Record<string, LucideIcon> = {
@@ -116,6 +118,7 @@ function RelationGroup({
 
 export function PersonDetailSheet({ onEdit }: { onEdit: (id: string) => void }) {
   const [personId, setPersonId] = useQueryState('person')
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const tree = useActiveTree()
   const person = personId ? tree.people[personId] : undefined
 
@@ -145,6 +148,7 @@ export function PersonDetailSheet({ onEdit }: { onEdit: (id: string) => void }) 
       0
 
   return (
+    <>
     <Sheet open={open} onOpenChange={(o) => { if (!o) close() }}>
       <SheetContent side="right" className="gap-0">
         {person && relations && (
@@ -216,7 +220,15 @@ export function PersonDetailSheet({ onEdit }: { onEdit: (id: string) => void }) 
               )}
             </div>
 
-            <SheetFooter>
+            <SheetFooter className="flex-row justify-between">
+              <Button
+                onClick={() => setConfirmDelete(true)}
+                variant="ghost"
+                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+              >
+                <Trash2 />
+                Delete
+              </Button>
               <Button onClick={handleEdit} variant="outline">
                 <Pencil />
                 {isPlaceholderPerson(person) ? 'Add details' : 'Edit details'}
@@ -226,5 +238,16 @@ export function PersonDetailSheet({ onEdit }: { onEdit: (id: string) => void }) 
         )}
       </SheetContent>
     </Sheet>
+
+    <DeletePersonDialog
+      open={confirmDelete}
+      personId={personId}
+      onClose={() => setConfirmDelete(false)}
+      onDeleted={() => {
+        setConfirmDelete(false)
+        close()
+      }}
+    />
+    </>
   )
 }
