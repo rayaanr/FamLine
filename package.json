@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "auth:generate": "better-auth generate --config lib/auth.ts --output db/auth-schema.ts -y",
+    "auth:generate": "bunx @better-auth/cli@latest generate --config lib/auth.ts --output db/auth-schema.ts -y",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
