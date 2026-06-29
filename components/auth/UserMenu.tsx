@@ -12,6 +12,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import { Separator } from '@/components/ui/separator'
+import { cn } from '@/lib/utils'
 import { GLOBAL_ROLE_LABELS, isSuperAdmin, type GlobalRole } from '@/lib/permissions'
 
 function initials(name?: string | null, email?: string | null) {
@@ -44,6 +46,7 @@ export function UserMenu() {
 
   const { user } = session
   const role = (user.role === 'super_admin' ? 'super_admin' : 'user') as GlobalRole
+  const isAdmin = isSuperAdmin(role)
 
   const handleSignOut = async () => {
     await signOut()
@@ -55,30 +58,50 @@ export function UserMenu() {
     <Popover>
       <PopoverTrigger className="rounded-full outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
         <Avatar>
-          {user.image ? <AvatarImage src={user.image} alt={user.name} /> : null}
+          {user.image ? <AvatarImage src={user.image} alt={user.name ?? ''} /> : null}
           <AvatarFallback>{initials(user.name, user.email)}</AvatarFallback>
         </Avatar>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-60 gap-3">
-        <div className="flex flex-col gap-0.5">
-          <span className="truncate font-medium">{user.name}</span>
-          <span className="truncate text-xs text-muted-foreground">
-            {user.email}
-          </span>
+
+      <PopoverContent align="end" className="w-56 overflow-hidden p-0">
+        {/* User info */}
+        <div className="flex items-center gap-2.5 px-3 py-3">
+          <Avatar className="size-9 shrink-0">
+            {user.image ? <AvatarImage src={user.image} alt={user.name ?? ''} /> : null}
+            <AvatarFallback className="text-xs">{initials(user.name, user.email)}</AvatarFallback>
+          </Avatar>
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <span className="truncate text-sm font-semibold leading-tight">{user.name}</span>
+            <span className="truncate text-xs text-muted-foreground leading-tight">{user.email}</span>
+          </div>
         </div>
 
-        <Badge variant="secondary" className="w-fit">
-          {GLOBAL_ROLE_LABELS[role]}
-        </Badge>
+        <div className="px-3 pb-2.5">
+          <Badge
+            variant="outline"
+            className={cn(
+              'text-[11px] font-medium',
+              isAdmin
+                ? 'border-violet-300 bg-violet-50 text-violet-700 dark:border-violet-700/50 dark:bg-violet-950/30 dark:text-violet-400'
+                : 'text-muted-foreground',
+            )}
+          >
+            {isAdmin && <Shield className="size-2.5!" />}
+            {GLOBAL_ROLE_LABELS[role]}
+          </Badge>
+        </div>
 
-        <div className="flex flex-col gap-1">
-          {isSuperAdmin(role) && (
+        <Separator />
+
+        {/* Actions */}
+        <div className="p-1">
+          {isAdmin && (
             <Button
               render={<Link href="/admin" />}
               nativeButton={false}
               variant="ghost"
               size="sm"
-              className="justify-start"
+              className="w-full justify-start"
             >
               <Shield className="size-4" />
               Manage users
@@ -87,7 +110,7 @@ export function UserMenu() {
           <Button
             variant="ghost"
             size="sm"
-            className="justify-start"
+            className="w-full justify-start text-destructive hover:bg-destructive/10 hover:text-destructive"
             onClick={handleSignOut}
           >
             <LogOut className="size-4" />
