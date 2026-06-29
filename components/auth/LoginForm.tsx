@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { GoogleIcon } from '@/components/auth/GoogleIcon'
+import { Spinner } from '@/components/ui/spinner'
 
 const schema = z.object({
   email: z.email('Enter a valid email'),
@@ -24,6 +25,7 @@ export function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [submitting, setSubmitting] = useState(false)
+  const [googleLoading, setGoogleLoading] = useState(false)
 
   const {
     register,
@@ -37,7 +39,9 @@ export function LoginForm() {
   const redirectTo = searchParams.get('redirect') ?? '/tree'
 
   const handleGoogle = async () => {
+    setGoogleLoading(true)
     await signIn.social({ provider: 'google', callbackURL: redirectTo })
+    // no setGoogleLoading(false) — page navigates away
   }
 
   const onSubmit = async (data: FormData) => {
@@ -60,8 +64,9 @@ export function LoginForm() {
 
   return (
     <div className="space-y-4">
-      <Button type="button" variant="outline" className="w-full" onClick={handleGoogle}>
-        <GoogleIcon /> Continue with Google
+      <Button type="button" variant="outline" className="w-full" onClick={handleGoogle} disabled={googleLoading}>
+        {googleLoading ? <Spinner /> : <GoogleIcon />}
+        {googleLoading ? 'Redirecting…' : 'Continue with Google'}
       </Button>
 
       <div className="relative">
