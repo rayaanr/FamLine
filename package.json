@@ -4,12 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "drizzle-kit migrate && next build",
+    "build": "tsx db/migrate.ts && next build",
     "start": "next start",
     "lint": "eslint",
     "auth:generate": "bunx @better-auth/cli@latest generate --config lib/auth.ts --output db/auth-schema.ts -y",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "tsx db/migrate.ts",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio"
   },
