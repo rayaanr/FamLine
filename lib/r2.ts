@@ -4,7 +4,9 @@ import {
   PutObjectCommand,
   GetObjectCommand,
   DeleteObjectCommand,
+  DeleteObjectsCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
@@ -109,6 +111,37 @@ export async function deleteObject(key: string): Promise<void> {
   await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
 }
 
+/**
+ * Delete every object whose key starts with `prefix`. Paginates automatically
+ * so it handles trees with more than 1 000 files.
+ */
+export async function deleteByPrefix(prefix: string): Promise<void> {
+  const { client, bucket } = r2();
+  let continuationToken: string | undefined;
+
+  do {
+    const list = await client.send(
+      new ListObjectsV2Command({
+        Bucket: bucket,
+        Prefix: prefix,
+        ContinuationToken: continuationToken,
+      }),
+    );
+
+    const keys = (list.Contents ?? []).map((o) => ({ Key: o.Key! }));
+    if (keys.length > 0) {
+      await client.send(
+        new DeleteObjectsCommand({
+          Bucket: bucket,
+          Delete: { Objects: keys, Quiet: true },
+        }),
+      );
+    }
+
+    continuationToken = list.IsTruncated ? list.NextContinuationToken : undefined;
+  } while (continuationToken);
+}
+
 // ── Object key builders ───────────────────────────────────────────────────────
 // Foldered per tree / member so the bucket stays browsable:
 //   trees/<treeId>/members/<personId>/profile/<assetId>.<ext>
@@ -137,12 +170,4 @@ export function documentKey(
   ext: string,
 ): string {
   return `trees/${treeId}/members/${personId}/documents/${assetId}.${ext}`;
-}
-
-export function galleryKey(
-  treeId: string,
-  assetId: string,
-  ext: string,
-): string {
-  return `trees/${treeId}/gallery/${assetId}.${ext}`;
 }

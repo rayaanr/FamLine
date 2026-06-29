@@ -15,6 +15,7 @@ import { TREE_ROLES, type TreeRole } from "@/lib/permissions";
 import type { FamilyTree } from "@/features/family-tree/types";
 import { personDisplayName } from "@/features/family-tree/utils/person";
 import { buildMockFamily } from "@/features/family-tree/utils/mockData";
+import { deleteByPrefix } from "@/lib/r2";
 
 const emptyTree = (): FamilyTree => ({
   people: {},
@@ -86,7 +87,10 @@ export async function renameTree(id: string, name: string): Promise<void> {
 
 export async function deleteTree(id: string): Promise<void> {
   await requireTreeOwner(id);
-  // Memberships and people_index rows cascade via FK on delete.
+  // R2 objects are not covered by FK cascade — purge them first so we don't
+  // leave orphaned files if the DB delete succeeds but R2 is unreachable later.
+  await deleteByPrefix(`trees/${id}/`);
+  // Memberships, media_asset, and people_index rows cascade via FK on delete.
   await db.delete(trees).where(eq(trees.id, id));
   revalidatePath("/tree");
 }
