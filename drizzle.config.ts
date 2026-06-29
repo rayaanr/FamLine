@@ -9,5 +9,6 @@ export default defineConfig({
   dialect: "postgresql",
   dbCredentials: {
     url: process.env.DB_URL!,
+    ssl: process.env.LOCAL_DB ? false : "require",
   },
 });
