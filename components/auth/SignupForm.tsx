@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -22,6 +22,7 @@ type FormData = z.infer<typeof schema>;
 
 export function SignupForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [submitting, setSubmitting] = useState(false);
 
   const {
@@ -48,9 +49,8 @@ export function SignupForm() {
     }
 
     toast.success("Account created");
-    // New accounts can immediately create their own tree (becoming its owner)
-    // or wait to be added to someone else's - the gallery handles both.
-    router.push("/tree");
+    const redirectTo = searchParams.get("redirect") ?? "/tree";
+    router.push(redirectTo);
     router.refresh();
   };
 

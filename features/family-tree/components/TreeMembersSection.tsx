@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
-import { Trash2 } from 'lucide-react'
+import { Trash2, Copy, Check, Clock } from 'lucide-react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -17,22 +17,29 @@ import {
 import { TREE_ROLES, TREE_ROLE_LABELS, type TreeRole } from '@/lib/permissions'
 import {
   listMembers,
-  addMember,
+  inviteMember,
   updateMemberRole,
   removeMember,
+  listInvitations,
+  revokeInvitation,
   type MemberInfo,
+  type InvitationInfo,
 } from '../server/actions'
 
 /** Owner-only member management. Renders inside the tree settings sheet. */
 export function TreeMembersSection({ treeId }: { treeId: string }) {
   const [members, setMembers] = useState<MemberInfo[] | null>(null)
+  const [invitations, setInvitations] = useState<InvitationInfo[]>([])
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<TreeRole>('member')
+  const [copiedId, setCopiedId] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
 
   const refresh = async () => {
     try {
-      setMembers(await listMembers(treeId))
+      const [m, i] = await Promise.all([listMembers(treeId), listInvitations(treeId)])
+      setMembers(m)
+      setInvitations(i)
     } catch {
       toast.error('Failed to load members')
     }
@@ -40,9 +47,12 @@ export function TreeMembersSection({ treeId }: { treeId: string }) {
 
   useEffect(() => {
     let cancelled = false
-    listMembers(treeId)
-      .then((m) => {
-        if (!cancelled) setMembers(m)
+    Promise.all([listMembers(treeId), listInvitations(treeId)])
+      .then(([m, i]) => {
+        if (!cancelled) {
+          setMembers(m)
+          setInvitations(i)
+        }
       })
       .catch(() => toast.error('Failed to load members'))
     return () => {
@@ -50,21 +60,40 @@ export function TreeMembersSection({ treeId }: { treeId: string }) {
     }
   }, [treeId])
 
-  const handleAdd = (e: React.FormEvent) => {
+  const handleInvite = (e: React.FormEvent) => {
     e.preventDefault()
     const trimmed = email.trim()
     if (!trimmed) return
     startTransition(async () => {
-      const res = await addMember(treeId, trimmed, role)
+      const res = await inviteMember(treeId, trimmed, role)
       if (res.error) {
         toast.error(res.error)
         return
       }
       setEmail('')
-      toast.success('Member added')
-      await refresh()
+      if (res.added) {
+        toast.success('Member added')
+        await refresh()
+        return
+      }
+      if (res.inviteUrl) {
+        await navigator.clipboard.writeText(res.inviteUrl)
+        toast.success('Invite link copied to clipboard — share it with them')
+        await refresh()
+      }
     })
   }
+
+  const copyInviteLink = (inv: InvitationInfo) =>
+    // Re-fetch the token via a fresh invite (reuses existing token server-side)
+    startTransition(async () => {
+      const res = await inviteMember(treeId, inv.email, inv.role as TreeRole)
+      if (res.inviteUrl) {
+        await navigator.clipboard.writeText(res.inviteUrl)
+        setCopiedId(inv.id)
+        setTimeout(() => setCopiedId(null), 2000)
+      }
+    })
 
   const handleRole = (userId: string, newRole: TreeRole) =>
     startTransition(async () => {
@@ -86,11 +115,21 @@ export function TreeMembersSection({ treeId }: { treeId: string }) {
       }
     })
 
+  const handleRevoke = (invitationId: string) =>
+    startTransition(async () => {
+      try {
+        await revokeInvitation(invitationId)
+        await refresh()
+      } catch {
+        toast.error('Failed to revoke invitation')
+      }
+    })
+
   return (
-    <div className="flex flex-col gap-3">
-      <form onSubmit={handleAdd} className="flex items-end gap-2">
+    <div className="flex flex-col gap-4">
+      <form onSubmit={handleInvite} className="flex items-end gap-2">
         <div className="flex flex-1 flex-col gap-1.5">
-          <Label htmlFor="member-email">Add by email</Label>
+          <Label htmlFor="member-email">Invite by email</Label>
           <Input
             id="member-email"
             type="email"
@@ -104,7 +143,7 @@ export function TreeMembersSection({ treeId }: { treeId: string }) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {TREE_ROLES.map((r) => (
+            {TREE_ROLES.filter((r) => r !== 'owner').map((r) => (
               <SelectItem key={r} value={r}>
                 {TREE_ROLE_LABELS[r]}
               </SelectItem>
@@ -112,15 +151,13 @@ export function TreeMembersSection({ treeId }: { treeId: string }) {
           </SelectContent>
         </Select>
         <Button type="submit" disabled={pending || !email.trim()}>
-          Add
+          Invite
         </Button>
       </form>
 
       <div className="flex flex-col gap-1">
         {members === null ? (
-          <p className="py-4 text-center text-sm text-muted-foreground">
-            Loading…
-          </p>
+          <p className="py-4 text-center text-sm text-muted-foreground">Loading…</p>
         ) : (
           members.map((m) => (
             <div
@@ -129,9 +166,7 @@ export function TreeMembersSection({ treeId }: { treeId: string }) {
             >
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{m.name}</p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {m.email}
-                </p>
+                <p className="truncate text-xs text-muted-foreground">{m.email}</p>
               </div>
               {m.isOwner ? (
                 <Badge variant="secondary">Owner</Badge>
@@ -169,6 +204,54 @@ export function TreeMembersSection({ treeId }: { treeId: string }) {
           ))
         )}
       </div>
+
+      {invitations.length > 0 && (
+        <div className="flex flex-col gap-1 border-t pt-3">
+          <p className="mb-1 text-xs font-medium text-muted-foreground">Pending invites</p>
+          {invitations.map((inv) => (
+            <div
+              key={inv.id}
+              className="flex items-center justify-between gap-2 rounded-lg px-1 py-1.5"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm">{inv.email}</p>
+                <p className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+                  <Clock className="size-3" />
+                  Expires {new Date(inv.expiresAt).toLocaleDateString()}
+                  {' · '}
+                  {TREE_ROLE_LABELS[inv.role as TreeRole]}
+                </p>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  disabled={pending}
+                  onClick={() => copyInviteLink(inv)}
+                  title="Copy invite link"
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  {copiedId === inv.id ? (
+                    <Check className="size-3.5" />
+                  ) : (
+                    <Copy className="size-3.5" />
+                  )}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  disabled={pending}
+                  onClick={() => handleRevoke(inv.id)}
+                  title="Revoke invitation"
+                  className="text-muted-foreground hover:text-destructive"
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

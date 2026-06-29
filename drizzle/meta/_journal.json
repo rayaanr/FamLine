@@ -8,6 +8,13 @@
       "when": 1782738559139,
       "tag": "0000_outgoing_christian_walker",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1782741648134,
+      "tag": "0001_solid_lionheart",
+      "breakpoints": true
     }
   ]
 }

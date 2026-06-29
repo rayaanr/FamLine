@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -27,7 +28,9 @@ export default function SignupPage() {
           <CardDescription>Start building your family tree</CardDescription>
         </CardHeader>
         <CardContent>
-          <SignupForm />
+          <Suspense fallback={null}>
+            <SignupForm />
+          </Suspense>
         </CardContent>
       </Card>
     </div>

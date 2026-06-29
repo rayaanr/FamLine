@@ -126,6 +126,29 @@ export const peopleIndex = pgTable(
   ],
 );
 
+export const treeInvitation = pgTable(
+  "tree_invitation",
+  {
+    id: text("id").primaryKey(),
+    treeId: text("tree_id")
+      .notNull()
+      .references(() => trees.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    role: text("role").notNull(),
+    token: text("token").notNull(),
+    invitedById: text("invited_by_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at").notNull(),
+    acceptedAt: timestamp("accepted_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("tree_invitation_token_idx").on(table.token),
+    index("tree_invitation_treeId_idx").on(table.treeId),
+  ],
+);
+
 export const treesRelations = relations(trees, ({ one, many }) => ({
   owner: one(user, {
     fields: [trees.ownerId],
@@ -161,6 +184,17 @@ export const mediaAssetRelations = relations(mediaAsset, ({ one }) => ({
   }),
   uploader: one(user, {
     fields: [mediaAsset.uploadedBy],
+    references: [user.id],
+  }),
+}));
+
+export const treeInvitationRelations = relations(treeInvitation, ({ one }) => ({
+  tree: one(trees, {
+    fields: [treeInvitation.treeId],
+    references: [trees.id],
+  }),
+  invitedBy: one(user, {
+    fields: [treeInvitation.invitedById],
     references: [user.id],
   }),
 }));

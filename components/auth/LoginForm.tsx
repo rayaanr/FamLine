@@ -88,7 +88,10 @@ export function LoginForm() {
 
       <p className="text-center text-sm text-muted-foreground">
         Don&apos;t have an account?{' '}
-        <Link href="/signup" className="font-medium text-foreground hover:underline">
+        <Link
+          href={`/signup${searchParams.get('redirect') ? `?redirect=${encodeURIComponent(searchParams.get('redirect')!)}` : ''}`}
+          className="font-medium text-foreground hover:underline"
+        >
           Create one
         </Link>
       </p>
