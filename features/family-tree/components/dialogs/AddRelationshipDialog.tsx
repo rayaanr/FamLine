@@ -104,7 +104,7 @@ function CoupleForm({
     return p ? `${p.firstName} ${p.lastName}` : id
   }
 
-  const { handleSubmit, control, reset, register, formState: { errors } } =
+  const { handleSubmit, control, reset, watch, register, formState: { errors } } =
     useForm<CoupleFormData>({
       resolver: zodResolver(coupleSchema),
       defaultValues: {
@@ -115,6 +115,8 @@ function CoupleForm({
         endDate: '',
       },
     })
+
+  const status = watch('status')
 
   useEffect(() => {
     reset({
@@ -223,9 +225,9 @@ function CoupleForm({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className={`grid gap-3 ${status === 'divorced' ? 'grid-cols-2' : 'grid-cols-1'}`}>
         <div className="space-y-1.5">
-          <Label>Start Date</Label>
+          <Label>Marriage Date</Label>
           <Controller
             name="startDate"
             control={control}
@@ -233,25 +235,27 @@ function CoupleForm({
               <DatePicker
                 value={field.value}
                 onChange={field.onChange}
-                placeholder="Start date"
+                placeholder="Marriage date"
               />
             )}
           />
         </div>
-        <div className="space-y-1.5">
-          <Label>End Date</Label>
-          <Controller
-            name="endDate"
-            control={control}
-            render={({ field }) => (
-              <DatePicker
-                value={field.value}
-                onChange={field.onChange}
-                placeholder="End date"
-              />
-            )}
-          />
-        </div>
+        {status === 'divorced' && (
+          <div className="space-y-1.5">
+            <Label>Divorce Date</Label>
+            <Controller
+              name="endDate"
+              control={control}
+              render={({ field }) => (
+                <DatePicker
+                  value={field.value}
+                  onChange={field.onChange}
+                  placeholder="Divorce date"
+                />
+              )}
+            />
+          </div>
+        )}
       </div>
 
       <DialogFooter>

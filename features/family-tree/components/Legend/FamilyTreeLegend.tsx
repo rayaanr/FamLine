@@ -1,39 +1,28 @@
 "use client";
 
-import {
-  ChevronDown,
-  Info,
-  Mars,
-  Venus,
-  NonBinary,
-  CircleHelp,
-  Heart,
-  HeartHandshake,
-  Unlink,
-  HeartCrack,
-  type LucideIcon,
-} from "lucide-react";
+import { ChevronDown, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { coupleStatusConfig } from "../../utils/coupleStatus";
+import { genderConfig } from "../../utils/genderConfig";
+import type { CoupleStatus, Gender } from "../../types";
 
-// Keep these in sync with PersonNode (gender), CoupleNode (status) and
-// ParentChildEdge (parentage) - they mirror the icons/colors used on the canvas.
-const genderItems: { label: string; icon: LucideIcon; color: string }[] = [
-  { label: "Male", icon: Mars, color: "text-blue-500" },
-  { label: "Female", icon: Venus, color: "text-pink-500" },
-  { label: "Other", icon: NonBinary, color: "text-purple-500" },
-  { label: "Unknown", icon: CircleHelp, color: "text-muted-foreground" },
+const genderItems: { label: string; gender: Gender }[] = [
+  { label: "Male",    gender: "male" },
+  { label: "Female",  gender: "female" },
+  { label: "Other",   gender: "other" },
+  { label: "Unknown", gender: "unknown" },
 ];
 
-const statusItems: { label: string; icon: LucideIcon; color: string }[] = [
-  { label: "Married", icon: Heart, color: "text-green-500" },
-  { label: "Partnered", icon: HeartHandshake, color: "text-blue-500" },
-  { label: "Separated", icon: Unlink, color: "text-amber-500" },
-  { label: "Divorced", icon: HeartCrack, color: "text-red-500" },
+const statusItems: { label: string; status: CoupleStatus }[] = [
+  { label: "Married",   status: "married" },
+  { label: "Partnered", status: "partnered" },
+  { label: "Separated", status: "separated" },
+  { label: "Divorced",  status: "divorced" },
 ];
 
 const lineItems = [
@@ -87,30 +76,37 @@ export function FamilyTreeLegend() {
       <CollapsibleContent>
         <div className="space-y-3 px-3 pb-3">
           <Section title="Person · gender">
-            {genderItems.map((g) => (
-              <Row
-                key={g.label}
-                label={g.label}
-                swatch={<g.icon className={cn("size-3.5", g.color)} />}
-              />
-            ))}
+            {genderItems.map(({ label, gender }) => {
+              const cfg = genderConfig[gender];
+              return (
+                <Row
+                  key={gender}
+                  label={label}
+                  swatch={<cfg.icon className={cn("size-3.5", cfg.iconColor)} />}
+                />
+              );
+            })}
           </Section>
 
           <Section title="Couple · status">
-            {statusItems.map((s) => (
-              <Row
-                key={s.label}
-                label={s.label}
-                swatch={
-                  <span className="flex size-5 items-center justify-center rounded-full border border-border bg-background">
-                    <s.icon
-                      className={cn("size-3", s.color)}
-                      fill="currentColor"
-                    />
-                  </span>
-                }
-              />
-            ))}
+            {statusItems.map(({ label, status }) => {
+              const cfg = coupleStatusConfig[status];
+              return (
+                <Row
+                  key={status}
+                  label={label}
+                  swatch={
+                    <span className={cn("flex size-5 items-center justify-center rounded-full border", cfg.bg)}>
+                      <cfg.icon
+                        className={cn("size-3", cfg.color)}
+                        fill="none"
+                        strokeWidth={1.75}
+                      />
+                    </span>
+                  }
+                />
+              );
+            })}
           </Section>
 
           <Section title="Parentage">
@@ -134,14 +130,12 @@ export function FamilyTreeLegend() {
               />
             ))}
           </Section>
-
-          <p className="border-t border-border pt-2 text-[11px] leading-snug text-muted-foreground">
-            Faded cards mark a deceased person; dashed cards are unknown
-            placeholders that still need details. Click a card to view details,
-            or use
-            <span className="font-medium text-foreground"> + </span>
-            to add a relative (known or unknown).
-          </p>
+          <ul className="list-disc border-t border-border pt-2 pl-2 space-y-[0.5] text-[10px] leading-snug text-muted-foreground">
+            <li>Faded cards mark a deceased person</li>
+            <li>Dashed cards are unknown placeholders that still need details</li>
+            <li>Click a card to view details</li>
+            <li>Use <span className="font-medium text-foreground">+</span> to add a relative (known or unknown)</li>
+          </ul>
         </div>
       </CollapsibleContent>
     </Collapsible>

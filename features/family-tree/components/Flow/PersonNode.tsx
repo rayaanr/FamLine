@@ -8,11 +8,6 @@ import {
   Crown,
   Minus,
   HelpCircle,
-  Mars,
-  Venus,
-  NonBinary,
-  CircleHelp,
-  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -30,36 +25,7 @@ import {
 import { useTreeAccess } from "../../hooks/useTreeAccess";
 import { useProfilePhotos } from "../../hooks/useProfilePhotos";
 import type { PersonFlowNode } from "../../utils/layout";
-
-const genderStyles: Record<string, string> = {
-  male: "bg-blue-50 border-blue-300 dark:bg-blue-950 dark:border-blue-700",
-  female: "bg-pink-50 border-pink-300 dark:bg-pink-950 dark:border-pink-700",
-  other:
-    "bg-purple-50 border-purple-300 dark:bg-purple-950 dark:border-purple-700",
-  unknown: "bg-muted border-border",
-};
-
-const genderIcon: Record<string, LucideIcon> = {
-  male: Mars,
-  female: Venus,
-  other: NonBinary,
-  unknown: CircleHelp,
-};
-
-const genderIconColor: Record<string, string> = {
-  male: "text-blue-500",
-  female: "text-pink-500",
-  other: "text-purple-500",
-  unknown: "text-muted-foreground",
-};
-
-const avatarStyles: Record<string, string> = {
-  male: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200",
-  female: "bg-pink-100 text-pink-700 dark:bg-pink-900 dark:text-pink-200",
-  other:
-    "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-200",
-  unknown: "bg-muted text-muted-foreground",
-};
+import { genderConfig } from "../../utils/genderConfig";
 
 // Handles still anchor the auto-generated edges, but they carry no meaning for
 // the user (you don't draw connections by hand), so they're hidden with opacity
@@ -98,14 +64,15 @@ export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
     person.isDeceased ? person.deathDate : undefined,
   );
 
-  const GenderIcon = genderIcon[person.gender];
+  const gender = genderConfig[person.gender];
+  const GenderIcon = gender.icon;
 
   return (
     <div
       onClick={() => onOpenDetails(person.id)}
       className={cn(
         "relative flex h-16 w-50 cursor-pointer flex-col justify-center rounded-xl border-2 bg-card px-3 shadow-sm transition-shadow hover:shadow-md",
-        genderStyles[person.gender],
+        gender.cardBg,
         isUnknown && "border-dashed bg-muted/40",
         person.isDeceased && "opacity-60",
       )}
@@ -139,12 +106,12 @@ export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
 
       {/* Person info */}
       <div className="flex items-center gap-2.5">
-        <Avatar className={cn("shrink-0", avatarStyles[person.gender])}>
+        <Avatar className={cn("shrink-0", gender.avatarBg)}>
           {photoUrl && (
             <AvatarImage src={photoUrl} alt={personDisplayName(person)} />
           )}
           <AvatarFallback
-            className={cn("font-semibold", avatarStyles[person.gender])}
+            className={cn("font-semibold", gender.avatarBg)}
           >
             {personInitials(person)}
           </AvatarFallback>
@@ -162,7 +129,7 @@ export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
             <GenderIcon
               className={cn(
                 "size-3.5 shrink-0",
-                genderIconColor[person.gender],
+                gender.iconColor,
               )}
               aria-label={person.gender}
             />

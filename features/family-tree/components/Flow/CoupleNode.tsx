@@ -1,31 +1,10 @@
 "use client";
 
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import {
-  Minus,
-  Plus,
-  Heart,
-  HeartCrack,
-  Unlink,
-  HeartHandshake,
-  type LucideIcon,
-} from "lucide-react";
+import { Minus, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CoupleFlowNode } from "../../utils/layout";
-
-const statusColors: Record<string, string> = {
-  married: "text-green-500",
-  divorced: "text-red-500",
-  separated: "text-amber-500",
-  partnered: "text-blue-500",
-};
-
-const statusIcon: Record<string, LucideIcon> = {
-  married: Heart,
-  divorced: HeartCrack,
-  separated: Unlink,
-  partnered: HeartHandshake,
-};
+import { coupleStatusConfig } from "../../utils/coupleStatus";
 
 // Handles anchor the auto-generated edges but aren't user-interactive. Hide with
 // opacity only - keep the box size so edge endpoints stay centered on the node.
@@ -41,17 +20,26 @@ export function CoupleNode({ data }: NodeProps<CoupleFlowNode>) {
     onToggleCollapse,
   } = data;
 
-  const StatusIcon = statusIcon[couple.status] ?? Heart;
+  const config = coupleStatusConfig[couple.status];
+  const StatusIcon = config.icon;
+  const year = couple.startDate ? new Date(couple.startDate).getFullYear() : null;
+  const endYear = couple.endDate ? new Date(couple.endDate).getFullYear() : null;
+  const isDivorced = couple.status === 'divorced';
 
   return (
     <div
       className={cn(
-        "nodrag relative flex size-10 cursor-pointer items-center justify-center rounded-full border-2 bg-background shadow-sm transition-shadow hover:shadow-md",
-        isCollapsed ? "border-primary" : "border-border",
+        "nodrag relative flex size-10 cursor-pointer items-center justify-center rounded-full border-2 shadow-sm transition-shadow hover:shadow-md",
+        isCollapsed ? "border-primary bg-background" : config.bg,
       )}
       onClick={() => onEdit(couple.id)}
       title={`${couple.status} - click to edit`}
     >
+      {year && (
+        <span className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] font-medium text-muted-foreground">
+          {isDivorced && endYear ? `m.${year}–${endYear}` : `m.${year}`}
+        </span>
+      )}
       <Handle
         type="target"
         position={Position.Left}
@@ -72,12 +60,12 @@ export function CoupleNode({ data }: NodeProps<CoupleFlowNode>) {
       />
 
       <StatusIcon
-        className={cn("size-4", statusColors[couple.status])}
-        fill="currentColor"
+        className={cn("size-4", config.color)}
+        fill="none"
+        strokeWidth={1.75}
       />
       <span className="sr-only">{couple.status}</span>
 
-      {/* Collapse / expand this couple's descendants */}
       {hasChildren && (
         <button
           className={cn(

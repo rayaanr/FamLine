@@ -33,6 +33,7 @@ import { FamilyTreeToolbar } from "../Toolbar/FamilyTreeToolbar";
 import { FamilyTreeLegend } from "../Legend/FamilyTreeLegend";
 import { AddPersonDialog } from "../dialogs/AddPersonDialog";
 import { AddRelationshipDialog } from "../dialogs/AddRelationshipDialog";
+import { EditCoupleDialog } from "../dialogs/EditCoupleDialog";
 import { PersonDetailSheet } from "../PersonDetailSheet";
 import type { Person } from "../../types";
 
@@ -83,6 +84,9 @@ export function FamilyTreeCanvas() {
 
   // Relationship dialog - single state object covers all three entry points
   const [relDialog, setRelDialog] = useState<RelDialogState>({ open: false });
+
+  // Edit couple dialog
+  const [editCoupleId, setEditCoupleId] = useState<string | null>(null);
 
   // Selected person for the detail sheet (URL = source of truth via ?person=<id>)
   const [, setSelectedPerson] = useQueryState("person");
@@ -161,7 +165,7 @@ export function FamilyTreeCanvas() {
     [addPerson, addCouple, addParentChild],
   );
 
-  const handleEditCouple = useCallback((_id: string) => {}, []);
+  const handleEditCouple = useCallback((id: string) => setEditCoupleId(id), []);
 
   const callbacks: NodeCallbacks = useMemo(
     () => ({
@@ -293,6 +297,11 @@ export function FamilyTreeCanvas() {
             ? relDialog.childId
             : undefined
         }
+      />
+
+      <EditCoupleDialog
+        coupleId={editCoupleId}
+        onClose={() => setEditCoupleId(null)}
       />
 
       <PersonDetailSheet onEdit={handleEditPerson} />

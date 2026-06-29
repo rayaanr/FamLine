@@ -81,6 +81,15 @@ Downloads are served as short-lived presigned **GET** URLs (300 s TTL) minted in
 
 R2 key structure: `trees/<treeId>/members/<personId>/profile/<id>.<ext>`, `.../documents/<id>.<ext>`, `trees/<treeId>/gallery/<id>.<ext>`.
 
+### Visual config — single source of truth
+
+Icons, colors, and background styles that appear on both canvas nodes **and** the legend must live in `features/family-tree/utils/` — never duplicated inline. Current config files:
+
+- `utils/genderConfig.ts` — icon, iconColor, cardBg, avatarBg per `Gender`
+- `utils/coupleStatus.ts` — icon, color, bg per `CoupleStatus`
+
+When adding a new visual property to a node type, add it to the relevant config file first, then import it in both the node component and the legend.
+
 ### Directory conventions
 
 ```
