@@ -63,6 +63,7 @@ export async function getEffectiveTreeRole(
 
 export interface TreeSummary {
   id: string;
+  slug: string;
   name: string;
   updatedAt: string;
   peopleCount: number;
@@ -91,6 +92,7 @@ export async function listAccessibleTrees(): Promise<TreeSummary[]> {
     const rows = await db
       .select({
         id: trees.id,
+        slug: trees.slug,
         name: trees.name,
         updatedAt: trees.updatedAt,
         ownerId: trees.ownerId,
@@ -100,6 +102,7 @@ export async function listAccessibleTrees(): Promise<TreeSummary[]> {
       .orderBy(desc(trees.updatedAt));
     return rows.map((r) => ({
       id: r.id,
+      slug: r.slug,
       name: r.name,
       updatedAt: r.updatedAt.toISOString(),
       peopleCount: r.peopleCount,
@@ -111,6 +114,7 @@ export async function listAccessibleTrees(): Promise<TreeSummary[]> {
   const rows = await db
     .select({
       id: trees.id,
+      slug: trees.slug,
       name: trees.name,
       updatedAt: trees.updatedAt,
       ownerId: trees.ownerId,
@@ -134,6 +138,7 @@ export async function listAccessibleTrees(): Promise<TreeSummary[]> {
     const isOwner = r.ownerId === session.user.id;
     return {
       id: r.id,
+      slug: r.slug,
       name: r.name,
       updatedAt: r.updatedAt.toISOString(),
       peopleCount: r.peopleCount,
@@ -144,13 +149,14 @@ export async function listAccessibleTrees(): Promise<TreeSummary[]> {
 }
 
 // ── Route guards ─────────────────────────────────────────────────────────────
-async function loadTreeOrRedirect(treeId: string) {
+async function loadTreeOrRedirect(idOrSlug: string) {
   const session = await getSession();
   if (!session) redirect("/login");
+  // The URL param may be either the canonical id or the human-readable slug.
   const [tree] = await db
     .select()
     .from(trees)
-    .where(eq(trees.id, treeId))
+    .where(or(eq(trees.id, idOrSlug), eq(trees.slug, idOrSlug)))
     .limit(1);
   if (!tree) redirect("/tree");
 
@@ -161,7 +167,7 @@ async function loadTreeOrRedirect(treeId: string) {
       .from(treeMembership)
       .where(
         and(
-          eq(treeMembership.treeId, treeId),
+          eq(treeMembership.treeId, tree.id),
           eq(treeMembership.userId, session.user.id),
         ),
       )

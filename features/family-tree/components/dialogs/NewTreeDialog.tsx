@@ -39,9 +39,9 @@ export function NewTreeDialog({ open, onClose }: NewTreeDialogProps) {
     if (!trimmed) return
     startTransition(async () => {
       try {
-        const id = await createTree(trimmed)
+        const slug = await createTree(trimmed)
         close()
-        router.push(`/tree/${id}`)
+        router.push(`/tree/${slug}`)
       } catch {
         toast.error('Failed to create tree')
       }

@@ -27,6 +27,7 @@ import { user } from "./auth-schema";
 export const trees = pgTable("trees", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
   ownerId: text("owner_id")
     .notNull()
     .references(() => user.id, { onDelete: "cascade" }),

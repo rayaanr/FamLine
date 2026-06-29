@@ -42,8 +42,8 @@ export function TreeGallery({ initialTrees }: { initialTrees: TreeSummary[] }) {
   const handleLoadDemo = () => {
     startTransition(async () => {
       try {
-        const id = await createDemoTree()
-        router.push(`/tree/${id}`)
+        const slug = await createDemoTree()
+        router.push(`/tree/${slug}`)
       } catch {
         toast.error('Failed to create demo tree')
       }
@@ -170,7 +170,7 @@ export function TreeGallery({ initialTrees }: { initialTrees: TreeSummary[] }) {
                   </Button>
                 </form>
               ) : (
-                <Link href={`/tree/${tree.id}`} className="flex flex-col gap-1">
+                <Link href={`/tree/${tree.slug}`} className="flex flex-col gap-1">
                   <span className="flex items-center gap-2 truncate text-base font-semibold text-foreground">
                     {tree.name}
                     {tree.role !== 'owner' && (
@@ -191,7 +191,7 @@ export function TreeGallery({ initialTrees }: { initialTrees: TreeSummary[] }) {
 
               {renamingId !== tree.id && (
                 <Link
-                  href={`/tree/${tree.id}`}
+                  href={`/tree/${tree.slug}`}
                   className="absolute inset-0 rounded-xl"
                   aria-label={`Open ${tree.name}`}
                 />

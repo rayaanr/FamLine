@@ -15,6 +15,13 @@
       "when": 1782741648134,
       "tag": "0001_solid_lionheart",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782759771069,
+      "tag": "0002_foamy_dust",
+      "breakpoints": true
     }
   ]
 }

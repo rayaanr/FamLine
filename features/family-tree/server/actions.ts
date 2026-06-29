@@ -2,10 +2,11 @@
 
 import { nanoid } from "nanoid";
 import { revalidatePath } from "next/cache";
-import { and, eq, isNull, gt, desc } from "drizzle-orm";
+import { and, eq, isNull, gt, desc, or, like } from "drizzle-orm";
 import { db } from "@/db";
 import { trees, treeMembership, peopleIndex, user, treeInvitation } from "@/db/schema";
 import { requireAuth } from "@/lib/auth-server";
+import { slugify } from "@/features/family-tree/utils/slug";
 import {
   requireTreeEdit,
   requireTreeOwner,
@@ -41,19 +42,70 @@ async function rebuildPeopleIndex(treeId: string, data: FamilyTree) {
   if (rows.length > 0) await db.insert(peopleIndex).values(rows);
 }
 
-/** Create a new tree owned by the current user. Returns the new tree id. */
+/**
+ * A globally-unique, URL-safe slug derived from a tree name. Collisions get a
+ * numeric suffix: "the-smiths", "the-smiths-2", "the-smiths-3", …
+ */
+async function generateUniqueTreeSlug(name: string): Promise<string> {
+  const base = slugify(name);
+  const taken = await db
+    .select({ slug: trees.slug })
+    .from(trees)
+    .where(or(eq(trees.slug, base), like(trees.slug, `${base}-%`)));
+  const used = new Set(taken.map((t) => t.slug));
+  if (!used.has(base)) return base;
+  let n = 2;
+  while (used.has(`${base}-${n}`)) n++;
+  return `${base}-${n}`;
+}
+
+/** True for a Postgres unique-constraint violation on `trees.slug`. */
+function isSlugUniqueViolation(e: unknown): boolean {
+  return (
+    typeof e === "object" &&
+    e !== null &&
+    "code" in e &&
+    (e as { code?: string }).code === "23505" &&
+    (e as { constraint?: string }).constraint === "trees_slug_unique"
+  );
+}
+
+/**
+ * Insert a tree, deriving a unique slug from its `name`. `generateUniqueTreeSlug`
+ * reads-then-writes, so two concurrent creates of the same name can compute the
+ * same slug before either commits; the DB unique constraint rejects the loser.
+ * We catch that, recompute against the now-committed rows, and retry.
+ */
+async function insertTreeWithUniqueSlug(
+  values: Omit<typeof trees.$inferInsert, "slug">,
+): Promise<string> {
+  const MAX_ATTEMPTS = 5;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const slug = await generateUniqueTreeSlug(values.name);
+    try {
+      await db.insert(trees).values({ ...values, slug });
+      return slug;
+    } catch (e) {
+      if (isSlugUniqueViolation(e) && attempt < MAX_ATTEMPTS) continue;
+      throw e;
+    }
+  }
+  // Unreachable: the loop always returns or throws.
+  throw new Error("Could not generate a unique tree slug");
+}
+
+/** Create a new tree owned by the current user. Returns the new tree's slug. */
 export async function createTree(name?: string): Promise<string> {
   const session = await requireAuth();
-  const id = nanoid();
   const trimmed = name?.trim() || "My Family";
-  await db.insert(trees).values({
-    id,
+  const slug = await insertTreeWithUniqueSlug({
+    id: nanoid(),
     name: trimmed,
     ownerId: session.user.id,
     data: emptyTree(),
   });
   revalidatePath("/tree");
-  return id;
+  return slug;
 }
 
 /**
@@ -64,7 +116,7 @@ export async function createDemoTree(): Promise<string> {
   const session = await requireAuth();
   const id = nanoid();
   const data: FamilyTree = { ...buildMockFamily(), collapsed: [] };
-  await db.insert(trees).values({
+  const slug = await insertTreeWithUniqueSlug({
     id,
     name: "Demo Family",
     ownerId: session.user.id,
@@ -72,7 +124,7 @@ export async function createDemoTree(): Promise<string> {
   });
   await rebuildPeopleIndex(id, data);
   revalidatePath("/tree");
-  return id;
+  return slug;
 }
 
 export async function renameTree(id: string, name: string): Promise<void> {
