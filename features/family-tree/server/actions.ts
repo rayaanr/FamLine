@@ -16,6 +16,7 @@ import type { FamilyTree } from "@/features/family-tree/types";
 import { personDisplayName } from "@/features/family-tree/utils/person";
 import { buildMockFamily } from "@/features/family-tree/utils/mockData";
 import { deleteByPrefix } from "@/lib/r2";
+import { sendInviteEmail } from "@/lib/email";
 
 const emptyTree = (): FamilyTree => ({
   people: {},
@@ -332,7 +333,9 @@ export async function inviteMember(
   }
 
   const base = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
-  return { inviteUrl: `${base}/join?token=${token}` };
+  const inviteUrl = `${base}/join?token=${token}`;
+  void sendInviteEmail(normalized, inviteUrl, tree.name, session.user.name);
+  return { inviteUrl };
 }
 
 /** List non-expired, non-accepted invitations for a tree. Owner only. */

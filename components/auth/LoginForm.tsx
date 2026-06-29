@@ -80,6 +80,14 @@ export function LoginForm() {
         {errors.password && (
           <p className="text-sm text-destructive">{errors.password.message}</p>
         )}
+        <div className="flex justify-end">
+          <Link
+            href="/forgot-password"
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            Forgot password?
+          </Link>
+        </div>
       </div>
 
       <Button type="submit" className="w-full" disabled={submitting}>
