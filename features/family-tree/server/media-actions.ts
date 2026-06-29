@@ -1,7 +1,7 @@
 "use server";
 
 import { nanoid } from "nanoid";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { mediaAsset, trees } from "@/db/schema";
 import {
@@ -17,7 +17,6 @@ import {
   headObject,
   profileKey,
   documentKey,
-  galleryKey,
   extOf,
 } from "@/lib/r2";
 import {
@@ -64,7 +63,6 @@ function validateSpec(spec: UploadSpec): string | null {
     return null;
   }
 
-  // profile + gallery are images only
   if (spec.kind === "profile" && !spec.personId) return "Missing member";
   if (!IMAGE_TYPES.has(spec.contentType)) return "Photos must be an image";
   if (spec.size > MAX_IMAGE) return "Image is larger than 10MB";
@@ -74,7 +72,6 @@ function validateSpec(spec: UploadSpec): string | null {
 /** Deterministic R2 key for an asset, derived from its own fields (never the client). */
 function keyFor(spec: UploadSpec, assetId: string): string {
   const ext = extOf(spec.fileName);
-  if (spec.kind === "gallery") return galleryKey(spec.treeId, assetId, ext);
   if (spec.kind === "profile")
     return profileKey(spec.treeId, spec.personId!, assetId, ext);
   return documentKey(spec.treeId, spec.personId!, assetId, ext);
@@ -167,7 +164,7 @@ export async function confirmUpload(
   await db.insert(mediaAsset).values({
     id: spec.assetId,
     treeId: spec.treeId,
-    personId: spec.kind === "gallery" ? null : (spec.personId ?? null),
+    personId: spec.personId ?? null,
     kind: spec.kind,
     docType: spec.kind === "document" ? (spec.docType ?? "other") : null,
     key,
@@ -237,17 +234,6 @@ export async function listProfilePhotos(
       .map(async (r) => [r.personId, await presignDownload(r.key)] as const),
   );
   return Object.fromEntries(entries);
-}
-
-/** All gallery images for a tree, newest first. */
-export async function listGallery(treeId: string): Promise<MediaAssetView[]> {
-  await requireTreeView(treeId);
-  const rows = await db
-    .select()
-    .from(mediaAsset)
-    .where(and(eq(mediaAsset.treeId, treeId), eq(mediaAsset.kind, "gallery")))
-    .orderBy(desc(mediaAsset.createdAt));
-  return Promise.all(rows.map(toView));
 }
 
 async function loadAsset(assetId: string): Promise<AssetRow | null> {

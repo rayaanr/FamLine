@@ -46,9 +46,9 @@ export const trees = pgTable("trees", {
 
 /**
  * A file stored in R2 (Cloudflare) belonging to a tree: a member's profile
- * photo, an identity document, or a gallery image. We keep only metadata here -
- * the object itself lives in R2 under `key`. Deliberately a separate table (not
- * inside `trees.data`) so uploads don't collide with the graph autosave.
+ * photo or an identity document. We keep only metadata here - the object itself
+ * lives in R2 under `key`. Deliberately a separate table (not inside
+ * `trees.data`) so uploads don't collide with the graph autosave.
  */
 export const mediaAsset = pgTable(
   "media_asset",
@@ -57,9 +57,8 @@ export const mediaAsset = pgTable(
     treeId: text("tree_id")
       .notNull()
       .references(() => trees.id, { onDelete: "cascade" }),
-    // The person within the tree this file belongs to. Null for gallery images.
     personId: text("person_id"),
-    // "profile" | "document" | "gallery"
+    // "profile" | "document"
     kind: text("kind").$type<MediaKind>().notNull(),
     // Document category (birth_certificate | nic | passport | other); null unless kind = "document".
     docType: text("doc_type").$type<DocType>(),

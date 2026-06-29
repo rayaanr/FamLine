@@ -63,7 +63,7 @@ export const DEFAULT_TREE_SETTINGS: TreeSettings = {
 }
 
 /** What a stored file represents. */
-export type MediaKind = 'profile' | 'document' | 'gallery'
+export type MediaKind = 'profile' | 'document'
 
 /** Category for an identity document. */
 export type DocType = 'birth_certificate' | 'nic' | 'passport' | 'other'

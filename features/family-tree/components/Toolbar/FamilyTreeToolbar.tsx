@@ -3,13 +3,12 @@
 import { useState } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import Link from 'next/link'
-import { UserPlus, Maximize, Expand, ArrowLeft, HelpCircle, Settings, Users, Images } from 'lucide-react'
+import { UserPlus, Maximize, Expand, ArrowLeft, HelpCircle, Settings, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useFamilyStore, useActiveTree } from '../../hooks/useFamilyStore'
 import { isPlaceholderPerson } from '../../utils/person'
 import { TreeSettingsDialog } from '../TreeSettingsDialog'
-import { TreeGallery } from '../media/TreeGallery'
 
 interface FamilyTreeToolbarProps {
   onAddPerson: () => void
@@ -20,7 +19,6 @@ export function FamilyTreeToolbar({ onAddPerson, canEdit }: FamilyTreeToolbarPro
   const { fitView } = useReactFlow()
   const tree = useActiveTree()
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [galleryOpen, setGalleryOpen] = useState(false)
   const personCount = Object.keys(tree.people).length
   const collapsedCount = tree.collapsed.length
   const placeholders = Object.values(tree.people).filter(isPlaceholderPerson)
@@ -112,16 +110,6 @@ export function FamilyTreeToolbar({ onAddPerson, canEdit }: FamilyTreeToolbarPro
       <Button
         size="icon-sm"
         variant="ghost"
-        onClick={() => setGalleryOpen(true)}
-        title="Family gallery"
-        className="text-muted-foreground"
-      >
-        <Images className="size-3.5" />
-      </Button>
-
-      <Button
-        size="icon-sm"
-        variant="ghost"
         onClick={() => setSettingsOpen(true)}
         title="Tree settings"
         className="text-muted-foreground"
@@ -130,12 +118,6 @@ export function FamilyTreeToolbar({ onAddPerson, canEdit }: FamilyTreeToolbarPro
       </Button>
     </div>
 
-    <TreeGallery
-      open={galleryOpen}
-      onClose={() => setGalleryOpen(false)}
-      treeId={tree.id}
-      canEdit={canEdit}
-    />
     <TreeSettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </>
   )
