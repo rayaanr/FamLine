@@ -285,10 +285,10 @@ export function TreeSettingsDialog({
                   </div>
                 )}
                 {canManage && (
-                  <div className="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 p-3">
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-medium">Delete tree</p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-sm font-medium text-destructive">Delete tree</p>
+                      <p className="text-xs text-destructive/80">
                         Permanently delete this tree and everyone in it.
                       </p>
                     </div>
