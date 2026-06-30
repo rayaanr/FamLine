@@ -61,6 +61,39 @@ function FitOnTreeChange({ treeId }: { treeId: string }) {
   return null;
 }
 
+// Drives the camera on each family swap. `center` names the person to zoom to
+// (the one you swapped to); when null we fit the whole focused view. Keyed by a
+// bumping `nonce` so the same target re-triggers. Runs after a short delay so
+// the new layout has been committed to React Flow.
+function SwapCamera({
+  swap,
+}: {
+  swap: { nonce: number; center: string | null };
+}) {
+  const { fitView, setCenter, getNode } = useReactFlow();
+  useEffect(() => {
+    if (swap.nonce === 0) return;
+    const t = setTimeout(() => {
+      if (swap.center) {
+        const node = getNode(`person-${swap.center}`);
+        if (node) {
+          const w = node.measured?.width ?? node.width ?? 200;
+          const h = node.measured?.height ?? node.height ?? 64;
+          setCenter(node.position.x + w / 2, node.position.y + h / 2, {
+            zoom: 1,
+            duration: 500,
+          });
+          return;
+        }
+      }
+      fitView({ duration: 400, padding: 0.2 });
+    }, 80);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [swap.nonce]);
+  return null;
+}
+
 type RelDialogState =
   | { open: false }
   | { open: true; mode: "couple"; partnerId?: string }
@@ -81,6 +114,11 @@ export function FamilyTreeCanvas() {
   // Family-portal focus: which married-in person's family we're viewing. Local
   // (per-user, non-persisted) — it's a view swap, not a saved tree edit.
   const [focusId, setFocusId] = useState<string | null>(null);
+  // Camera instruction for the next swap (zoom to a person, or fit the view).
+  const [swap, setSwap] = useState<{ nonce: number; center: string | null }>({
+    nonce: 0,
+    center: null,
+  });
 
   // Person dialog
   const [personDialog, setPersonDialog] = useState<{
@@ -173,22 +211,35 @@ export function FamilyTreeCanvas() {
 
   const handleEditCouple = useCallback((id: string) => setEditCoupleId(id), []);
 
-  const handleOpenFamily = useCallback((id: string) => {
-    setFocusId((cur) => {
+  const handleOpenFamily = useCallback(
+    (id: string) => {
       // Clicking the spouse of the currently-focused person is the bridge back
-      // to the family we came from — return to the full tree rather than
-      // focusing the spouse's (tiny) ancestral pedigree.
-      if (cur) {
-        const couplesNow = getActiveTree().couples;
-        const isSpouseOfFocus = Object.values(couplesNow).some(
+      // to the family we came from: that spouse is bloodline of the full tree,
+      // so return to it — but zoom straight to that person rather than fitting
+      // the whole tree. Any other portal focuses that person's own family.
+      const isSpouseOfFocus =
+        focusId !== null &&
+        Object.values(couples).some(
           (c) =>
-            (c.partner1Id === cur && c.partner2Id === id) ||
-            (c.partner2Id === cur && c.partner1Id === id),
+            (c.partner1Id === focusId && c.partner2Id === id) ||
+            (c.partner2Id === focusId && c.partner1Id === id),
         );
-        if (isSpouseOfFocus) return null;
+      if (isSpouseOfFocus) {
+        // Return to the full tree, zoomed in on that person.
+        setFocusId(null);
+        setSwap((s) => ({ nonce: s.nonce + 1, center: id }));
+      } else {
+        // Open that person's family; fit the (small) family into view.
+        setFocusId(id);
+        setSwap((s) => ({ nonce: s.nonce + 1, center: null }));
       }
-      return id;
-    });
+    },
+    [focusId, couples],
+  );
+
+  const handleExitFocus = useCallback(() => {
+    setFocusId(null);
+    setSwap((s) => ({ nonce: s.nonce + 1, center: null }));
   }, []);
 
   const callbacks: NodeCallbacks = useMemo(
@@ -253,6 +304,7 @@ export function FamilyTreeCanvas() {
         deleteKeyCode={null}
       >
         <FitOnTreeChange treeId={tree.id} />
+        <SwapCamera swap={swap} />
         <Background />
         <Controls />
         <MiniMap
@@ -290,7 +342,7 @@ export function FamilyTreeCanvas() {
                 &apos;s family
               </span>
               <button
-                onClick={() => setFocusId(null)}
+                onClick={handleExitFocus}
                 className="flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted/70"
               >
                 <X className="size-3" />

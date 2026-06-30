@@ -727,5 +727,22 @@ export function buildGraphFromTree(
     }
   }
 
+  // Normalize so the placed graph starts near the origin. Generation rows are
+  // absolute (row * ROW_H), so a focused family of deep ancestors would
+  // otherwise sit far down/right with empty space above it.
+  if (nodes.length > 0) {
+    let minX = Infinity;
+    let minY = Infinity;
+    for (const n of nodes) {
+      if (n.position.x < minX) minX = n.position.x;
+      if (n.position.y < minY) minY = n.position.y;
+    }
+    if (minX !== 0 || minY !== 0) {
+      for (const n of nodes) {
+        n.position = { x: n.position.x - minX, y: n.position.y - minY };
+      }
+    }
+  }
+
   return { nodes, edges };
 }
