@@ -318,5 +318,73 @@ export function buildMockFamily(): Omit<FamilyTree, "collapsed"> {
     frontier = next;
   }
 
+  // ── Graft in-law ancestry onto a few married-in spouses ──────────────────────
+  // The generator otherwise creates married-in spouses with no parents, so the
+  // "family portal" feature (a spouse who carries their own hidden lineage)
+  // never fires. Attach a small pedigree to the oldest married-in spouses so the
+  // demo shows portal icons and the view-swap.
+  const yearOf = (id: string) =>
+    Number.parseInt(people[id].birthDate?.slice(0, 4) ?? "0", 10);
+
+  const childIds = new Set(Object.values(parentChildren).map((pc) => pc.childId));
+  const partnerIds = new Set<string>();
+  for (const c of Object.values(couples)) {
+    partnerIds.add(c.partner1Id);
+    partnerIds.add(c.partner2Id);
+  }
+  const coupleHasKids = (cid: string) =>
+    Object.values(parentChildren).some((pc) => pc.coupleId === cid);
+  const hasKids = (id: string) =>
+    Object.values(couples).some(
+      (c) => (c.partner1Id === id || c.partner2Id === id) && coupleHasKids(c.id),
+    );
+
+  // Married-in spouses (a partner, but not anyone's child) who have descendants,
+  // so the swap reveals a meaningful family. Oldest first → taller pedigrees.
+  const inLawCandidates = Object.keys(people)
+    .filter(
+      (id) =>
+        partnerIds.has(id) &&
+        !childIds.has(id) &&
+        id !== founderH &&
+        id !== founderW &&
+        hasKids(id),
+    )
+    .sort((a, b) => yearOf(a) - yearOf(b));
+
+  // Build `depth` generations of ancestors above `spouseId`, climbing the
+  // paternal line. Optionally give the spouse a sibling (hidden under focus).
+  const graftAncestry = (
+    spouseId: string,
+    depth: number,
+    addSibling: boolean,
+  ) => {
+    let childId = spouseId;
+    for (let d = 0; d < depth; d++) {
+      const childYear = yearOf(childId);
+      const parentYear = childYear - randInt(24, 30);
+      const father = makePerson(
+        "male",
+        people[childId].lastName,
+        parentYear - randInt(0, 3),
+      );
+      const mother = makePerson("female", pick(SURNAMES), parentYear);
+      const pc = makeCouple(father, mother, parentYear + randInt(22, 28));
+      linkChild(childId, pc);
+      if (d === 0 && addSibling) {
+        const sib = makePerson(
+          rand() < 0.5 ? "male" : "female",
+          people[childId].lastName,
+          childYear + randInt(-3, 3),
+        );
+        linkChild(sib, pc);
+      }
+      childId = father; // climb the in-law paternal line
+    }
+  };
+
+  if (inLawCandidates[0]) graftAncestry(inLawCandidates[0], 3, true);
+  if (inLawCandidates[1]) graftAncestry(inLawCandidates[1], 2, false);
+
   return { people, couples, parentChildren };
 }

@@ -31,11 +31,11 @@ export interface PersonNodeData extends Record<string, unknown> {
   hiddenCount?: number;
   hasChildren?: boolean;
   onToggleCollapse?: (nodeId: string) => void;
-  // Ancestry branch collapse (upward — hides parents / grandparents).
-  hasParents?: boolean;
-  isAncestryCollapsed?: boolean;
-  ancestorCount?: number;
-  onToggleAncestry?: (nodeId: string) => void;
+  // Married-in family portal: this person married into the bloodline being
+  // viewed and has their own (currently hidden) ancestry. Clicking opens it.
+  isPortal?: boolean;
+  hiddenFamilyCount?: number;
+  onOpenFamily?: (personId: string) => void;
 }
 
 export interface CoupleNodeData extends Record<string, unknown> {
@@ -69,7 +69,7 @@ export interface NodeCallbacks {
   onAddUnknown: (id: string, kind: UnknownRelativeKind) => void;
   onEditCouple: (id: string) => void;
   onToggleCollapse: (nodeId: string) => void;
-  onToggleAncestry: (nodeId: string) => void;
+  onOpenFamily: (personId: string) => void;
 }
 
 interface Point {
@@ -81,6 +81,7 @@ export function buildGraphFromTree(
   tree: FamilyTree,
   callbacks: NodeCallbacks,
   collapsed: Set<string> = new Set(),
+  focusId: string | null = null,
 ): { nodes: AppNode[]; edges: AppEdge[] } {
   const { people, couples, parentChildren } = tree;
 
@@ -120,16 +121,7 @@ export function buildGraphFromTree(
     singleParentChildren.get(personId) ?? [];
   const otherPartner = (couple: Couple, id: string) =>
     couple.partner1Id === id ? couple.partner2Id : couple.partner1Id;
-
-  // People whose ancestry is collapsed — treated as parentless for layout so
-  // they anchor as roots / spouses even though they have parents in the data.
-  const ancestryCollapsed = new Set(
-    [...collapsed]
-      .filter((k) => k.startsWith("ancestry-"))
-      .map((k) => k.slice("ancestry-".length)),
-  );
-  const isParentless = (id: string) =>
-    !childHasParents.has(id) || ancestryCollapsed.has(id);
+  const isParentless = (id: string) => !childHasParents.has(id);
 
   // Walk upward from personId, adding every ancestor (person IDs) to `seen`.
   const collectAncestors = (personId: string, seen: Set<string>): void => {
@@ -151,11 +143,6 @@ export function buildGraphFromTree(
       }
     }
   };
-  const countAncestors = (personId: string): number => {
-    const seen = new Set<string>();
-    collectAncestors(personId, seen);
-    return seen.size;
-  };
 
   // ── Collapse: a collapsed point lays out as a leaf (no descendants) ──────────
   const coupleCollapsed = (coupleId: string) =>
@@ -166,6 +153,131 @@ export function buildGraphFromTree(
     coupleCollapsed(coupleId) ? [] : childrenOf(coupleId);
   const visibleSoleChildrenOf = (personId: string) =>
     personCollapsed(personId) ? [] : soleChildrenOf(personId);
+
+  // ── Married-in detection & ancestry collapse ─────────────────────────────────
+  // A married-in person is one reached through a marriage (placed as a spouse),
+  // not by descending the bloodline. Married-in people who carry their own
+  // parents are "portals": their ancestry is hidden by default and an icon on
+  // their card opens (focuses) that family. Focusing swaps the view entirely.
+  const trulyParentless = (id: string) => !childHasParents.has(id);
+
+  // Mirror the placement descent order to classify bloodline vs married-in.
+  const visited = new Set<string>();
+  const marriedIn = new Set<string>();
+  const descend = (id: string): void => {
+    if (visited.has(id)) return;
+    visited.add(id);
+    for (const cid of couplesOf(id)) {
+      const sp = otherPartner(couples[cid], id);
+      if (!visited.has(sp)) {
+        visited.add(sp);
+        marriedIn.add(sp); // placed as a flanking spouse, not bloodline
+      }
+      if (!coupleCollapsed(cid)) for (const ch of childrenOf(cid)) descend(ch);
+    }
+    if (!personCollapsed(id)) for (const ch of soleChildrenOf(id)) descend(ch);
+  };
+
+  // The "family" of a person F when their portal is opened: F's full blood
+  // family — ancestors plus everyone descending from those ancestors (siblings,
+  // cousins, aunts/uncles…), but pruned AT F so F's own descendants (shared with
+  // the spouse they married) stay hidden. F's spouse(s) are kept as leaves and
+  // become the portal back to the family they married into. Returns the visible
+  // member set and the spouse-leaves that should show a portal icon.
+  const computeFocusFamily = (
+    F: string,
+  ): { fam: Set<string>; portals: Set<string> } => {
+    const fam = new Set<string>();
+    collectAncestors(F, fam);
+    const ancestorsOnly = new Set(fam);
+    fam.add(F);
+    const spouseLeaves = new Set<string>();
+    const expand = (id: string): void => {
+      for (const cid of couplesOf(id)) {
+        const sp = otherPartner(couples[cid], id);
+        if (!fam.has(sp)) {
+          fam.add(sp);
+          spouseLeaves.add(sp);
+        }
+        if (!coupleCollapsed(cid))
+          for (const ch of childrenOf(cid)) {
+            if (fam.has(ch)) continue;
+            fam.add(ch);
+            if (ch !== F) expand(ch); // prune below F (the other family)
+          }
+      }
+      if (!personCollapsed(id))
+        for (const ch of soleChildrenOf(id)) {
+          if (fam.has(ch)) continue;
+          fam.add(ch);
+          if (ch !== F) expand(ch);
+        }
+    };
+    for (const a of ancestorsOnly) expand(a);
+    // F's own spouse(s): the bridge leaf/portal back to the other family.
+    for (const cid of couplesOf(F)) {
+      const sp = otherPartner(couples[cid], F);
+      fam.add(sp);
+      spouseLeaves.add(sp);
+    }
+    const portals = new Set<string>();
+    for (const sp of spouseLeaves) if (childHasParents.has(sp)) portals.add(sp);
+    return { fam, portals };
+  };
+
+  // People hidden from layout entirely, and the portal people that show an icon.
+  const hidden = new Set<string>();
+  const portalPeople = new Set<string>();
+  const validFocus = focusId && people[focusId] ? focusId : null;
+
+  if (validFocus) {
+    // Swap view: show the focused person's whole family, hide everything else.
+    const { fam, portals } = computeFocusFamily(validFocus);
+    for (const id of Object.keys(people)) if (!fam.has(id)) hidden.add(id);
+    for (const p of portals) portalPeople.add(p);
+  } else {
+    // Default: establish each connected family's primary bloodline one at a
+    // time. After descending a primary, hide the married-in families that hang
+    // off it (whole family: ancestors + collateral), so their parentless
+    // founders aren't then descended as separate primaries / leaked as strays.
+    const hideMarriedIn = () => {
+      for (const s of marriedIn) {
+        if (portalPeople.has(s) || !childHasParents.has(s)) continue;
+        portalPeople.add(s);
+        const { fam } = computeFocusFamily(s);
+        for (const m of fam) if (m !== s && !visited.has(m)) hidden.add(m);
+      }
+    };
+    // Founding couples first, then any remaining roots — re-scanning after each
+    // so newly-hidden in-law founders are skipped.
+    const descendNextRoot = (): boolean => {
+      for (const c of Object.values(couples)) {
+        if (visited.has(c.partner1Id) || visited.has(c.partner2Id)) continue;
+        if (hidden.has(c.partner1Id) || hidden.has(c.partner2Id)) continue;
+        if (trulyParentless(c.partner1Id) && trulyParentless(c.partner2Id)) {
+          descend(c.partner1Id);
+          hideMarriedIn();
+          return true;
+        }
+      }
+      for (const id of Object.keys(people)) {
+        if (visited.has(id) || hidden.has(id) || !trulyParentless(id)) continue;
+        descend(id);
+        hideMarriedIn();
+        return true;
+      }
+      return false;
+    };
+    while (descendNextRoot()) {
+      /* keep establishing primaries until none remain */
+    }
+    // Safety net for cycles/orphans — never resurrect a hidden married-in family.
+    for (const id of Object.keys(people)) {
+      if (visited.has(id) || hidden.has(id)) continue;
+      descend(id);
+    }
+    hideMarriedIn();
+  }
 
   // Number of people hidden when a branch is collapsed (the whole subtree below
   // it). Walks the raw maps; `seen` guards against the rare shared-descendant DAG.
@@ -376,11 +488,15 @@ export function buildGraphFromTree(
   };
 
   function buildShapeImpl(id: string): Shape | null {
-    if (claimed.has(id)) return null;
+    if (claimed.has(id) || hidden.has(id)) return null;
     claimed.add(id);
 
     const g = generation.get(id) ?? 0;
-    const coupleIds = couplesOf(id);
+    // Drop couples whose partner is hidden (e.g. a married-in spouse whose own
+    // lineage we are focused on, so the bridging partner sits elsewhere).
+    const coupleIds = couplesOf(id).filter(
+      (cid) => !hidden.has(otherPartner(couples[cid], id)),
+    );
     const shape = emptyShape();
 
     // All descendant blocks below this person, in one band: each couple's
@@ -388,8 +504,9 @@ export function buildGraphFromTree(
     const bandChildIds: string[] = [];
     for (const cid of coupleIds) bandChildIds.push(...visibleChildrenOf(cid));
     bandChildIds.push(...visibleSoleChildrenOf(id));
+    const visibleBandChildIds = bandChildIds.filter((ch) => !hidden.has(ch));
 
-    const { merged: band, centers } = buildBand(bandChildIds);
+    const { merged: band, centers } = buildBand(visibleBandChildIds);
     // Anchor the parent over the midpoint of the outermost children.
     const bandAnchor = centers.length
       ? (centers[0] + centers[centers.length - 1]) / 2
@@ -464,16 +581,13 @@ export function buildGraphFromTree(
     return maxRight - minLeft;
   };
 
-  // Everyone living below a collapsed point (descendants) or above an
-  // ancestry-collapsed point (ancestors) must not be placed at all.
-  const hidden = new Set<string>();
+  // Fold in descendant-collapse: everyone below a collapsed point must not be
+  // placed at all (otherwise the safety net would re-add them as stray roots).
   for (const key of collapsed) {
     if (key.startsWith("couple-"))
       countCoupleDescendants(key.slice("couple-".length), hidden);
     else if (key.startsWith("person-"))
       countPersonDescendants(key.slice("person-".length), hidden);
-    else if (key.startsWith("ancestry-"))
-      collectAncestors(key.slice("ancestry-".length), hidden);
   }
 
   // ── Choose roots & run placement ────────────────────────────────────────────
@@ -530,12 +644,13 @@ export function buildGraphFromTree(
           ? countPersonDescendants(person.id, new Set([person.id]))
           : 0,
         onToggleCollapse: callbacks.onToggleCollapse,
-        hasParents: childHasParents.has(person.id),
-        isAncestryCollapsed: ancestryCollapsed.has(person.id),
-        ancestorCount: ancestryCollapsed.has(person.id)
-          ? countAncestors(person.id)
+        isPortal: portalPeople.has(person.id),
+        hiddenFamilyCount: portalPeople.has(person.id)
+          ? [...computeFocusFamily(person.id).fam].filter(
+              (id) => id !== person.id && hidden.has(id),
+            ).length
           : 0,
-        onToggleAncestry: callbacks.onToggleAncestry,
+        onOpenFamily: callbacks.onOpenFamily,
       },
     });
   }

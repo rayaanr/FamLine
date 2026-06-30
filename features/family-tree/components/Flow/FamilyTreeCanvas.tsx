@@ -35,6 +35,8 @@ import { AddPersonDialog } from "../dialogs/AddPersonDialog";
 import { AddRelationshipDialog } from "../dialogs/AddRelationshipDialog";
 import { EditCoupleDialog } from "../dialogs/EditCoupleDialog";
 import { PersonDetailSheet } from "../PersonDetailSheet";
+import { personDisplayName } from "../../utils/person";
+import { X } from "lucide-react";
 import type { Person } from "../../types";
 
 // Defined at module scope - React Flow requires stable references
@@ -75,6 +77,10 @@ export function FamilyTreeCanvas() {
   const addParentChild = useFamilyStore((s) => s.addParentChild);
 
   const collapsed = useMemo(() => new Set(collapsedList), [collapsedList]);
+
+  // Family-portal focus: which married-in person's family we're viewing. Local
+  // (per-user, non-persisted) — it's a view swap, not a saved tree edit.
+  const [focusId, setFocusId] = useState<string | null>(null);
 
   // Person dialog
   const [personDialog, setPersonDialog] = useState<{
@@ -167,6 +173,24 @@ export function FamilyTreeCanvas() {
 
   const handleEditCouple = useCallback((id: string) => setEditCoupleId(id), []);
 
+  const handleOpenFamily = useCallback((id: string) => {
+    setFocusId((cur) => {
+      // Clicking the spouse of the currently-focused person is the bridge back
+      // to the family we came from — return to the full tree rather than
+      // focusing the spouse's (tiny) ancestral pedigree.
+      if (cur) {
+        const couplesNow = getActiveTree().couples;
+        const isSpouseOfFocus = Object.values(couplesNow).some(
+          (c) =>
+            (c.partner1Id === cur && c.partner2Id === id) ||
+            (c.partner2Id === cur && c.partner1Id === id),
+        );
+        if (isSpouseOfFocus) return null;
+      }
+      return id;
+    });
+  }, []);
+
   const callbacks: NodeCallbacks = useMemo(
     () => ({
       onEditPerson: handleEditPerson,
@@ -177,7 +201,7 @@ export function FamilyTreeCanvas() {
       onAddUnknown: handleAddUnknown,
       onEditCouple: handleEditCouple,
       onToggleCollapse: toggleCollapse,
-      onToggleAncestry: toggleCollapse,
+      onOpenFamily: handleOpenFamily,
     }),
     [
       handleEditPerson,
@@ -188,14 +212,17 @@ export function FamilyTreeCanvas() {
       handleAddUnknown,
       handleEditCouple,
       toggleCollapse,
+      handleOpenFamily,
     ],
   );
 
   const { nodes: layoutNodes, edges: layoutEdges } = useMemo(
-    () => buildGraphFromTree(tree, callbacks, collapsed),
+    () => buildGraphFromTree(tree, callbacks, collapsed, focusId),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [people, couples, parentChildren, collapsed],
+    [people, couples, parentChildren, collapsed, focusId],
   );
+
+  const focusedPerson = focusId ? people[focusId] : undefined;
 
   const [nodes, setNodes, onNodesChange] = useNodesState(layoutNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(layoutEdges);
@@ -251,6 +278,27 @@ export function FamilyTreeCanvas() {
         <Panel position="top-right">
           <FamilyTreeLegend />
         </Panel>
+
+        {focusedPerson && (
+          <Panel position="top-center">
+            <div className="flex items-center gap-3 rounded-full border border-border bg-background/95 py-1.5 pl-4 pr-1.5 shadow-md backdrop-blur">
+              <span className="text-sm text-muted-foreground">
+                Viewing{" "}
+                <span className="font-semibold text-foreground">
+                  {personDisplayName(focusedPerson)}
+                </span>
+                &apos;s family
+              </span>
+              <button
+                onClick={() => setFocusId(null)}
+                className="flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted/70"
+              >
+                <X className="size-3" />
+                Show full tree
+              </button>
+            </div>
+          </Panel>
+        )}
 
         {isEmpty && (
           <Panel position="top-center">

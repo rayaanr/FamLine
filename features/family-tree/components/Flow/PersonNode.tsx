@@ -38,10 +38,9 @@ export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
     isCollapsed,
     hiddenCount,
     onToggleCollapse,
-    hasParents,
-    isAncestryCollapsed,
-    ancestorCount,
-    onToggleAncestry,
+    isPortal,
+    hiddenFamilyCount,
+    onOpenFamily,
   } = data;
 
   const { canEdit } = useTreeAccess();
@@ -167,30 +166,29 @@ export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
         </div>
       </div>
 
-      {/* Top indicator: ancestry branch collapse. Only shown when this person
-          has parents in the tree so the user can fold the in-law branch. */}
-      {canEdit && hasParents && (
-        <div className="nodrag nopan absolute -top-3 left-1/2 flex -translate-x-1/2 items-center">
+      {/* Top indicator: family portal. A short branch line rises from the card
+          to a branch icon, hinting at the person's own (hidden) lineage. Shown
+          when this person married into the bloodline being viewed. Clicking
+          swaps the canvas to view their family. Available to viewers too. */}
+      {isPortal && (
+        <div className="nodrag nopan absolute bottom-full left-1/2 flex -translate-x-1/2 flex-col items-center">
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onToggleAncestry?.(`ancestry-${person.id}`);
+              onOpenFamily?.(person.id);
             }}
-            className={cn(
-              "flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold leading-none shadow-sm transition-colors",
-              isAncestryCollapsed
-                ? "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20"
-                : "border-border bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground",
-            )}
+            className="flex items-center gap-0.5 rounded-full border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary shadow-sm transition-colors hover:bg-primary/20"
             title={
-              isAncestryCollapsed
-                ? `Show ${ancestorCount} hidden ancestor${ancestorCount === 1 ? "" : "s"}`
-                : "Hide ancestry branch"
+              hiddenFamilyCount
+                ? `Open their family (${hiddenFamilyCount} hidden)`
+                : "Open their family"
             }
           >
             <GitBranch className="size-2.5" />
-            {isAncestryCollapsed && ancestorCount}
+            {hiddenFamilyCount ? hiddenFamilyCount : null}
           </button>
+          {/* stem connecting the icon down to the card */}
+          <div className="h-3 w-px bg-primary/40" />
         </div>
       )}
 
