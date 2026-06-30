@@ -8,6 +8,7 @@ import {
   Crown,
   Minus,
   HelpCircle,
+  Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -35,6 +36,7 @@ const hiddenHandle = "!size-2.5 !opacity-0";
 export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
   const {
     person,
+    onEdit,
     onOpenDetails,
     onAddSpouse,
     onAddChild,
@@ -71,7 +73,7 @@ export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
     <div
       onClick={() => onOpenDetails(person.id)}
       className={cn(
-        "relative flex h-16 w-50 cursor-pointer flex-col justify-center rounded-xl border-2 bg-card px-3 shadow-sm transition-shadow hover:shadow-md",
+        "group relative flex h-16 w-50 cursor-pointer flex-col justify-center rounded-xl border-2 bg-card px-3 shadow-sm transition-shadow hover:shadow-md",
         gender.cardBg,
         isUnknown && "border-dashed bg-muted/40",
         person.isDeceased && "opacity-60",
@@ -103,6 +105,16 @@ export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
         id="bottom"
         className={hiddenHandle}
       />
+
+      {canEdit && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onEdit(person.id); }}
+          className="nodrag nopan absolute right-1.5 top-1.5 flex size-5 items-center justify-center rounded-full bg-background/80 text-muted-foreground opacity-0 shadow-sm transition-opacity hover:text-foreground group-hover:opacity-100"
+          title="Edit person"
+        >
+          <Pencil className="size-3" />
+        </button>
+      )}
 
       {/* Person info */}
       <div className="flex items-center gap-2.5">
