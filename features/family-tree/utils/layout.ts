@@ -330,6 +330,8 @@ export function buildGraphFromTree(
   //   • a child sits one generation below its parents
   // This correctly pulls "married-in" spouses down to their partner's row,
   // instead of stranding them at generation 0 just because they have no parents.
+  // Hidden people are excluded so a spouse's hidden deep ancestry can't inflate
+  // a visible person's row (which would leave huge empty gaps between rows).
   const generation = new Map<string, number>();
   for (const id of Object.keys(people)) generation.set(id, 0);
 
@@ -345,6 +347,7 @@ export function buildGraphFromTree(
     changed = false;
 
     for (const c of Object.values(couples)) {
+      if (hidden.has(c.partner1Id) || hidden.has(c.partner2Id)) continue;
       const g = coupleGen(c);
       if (generation.get(c.partner1Id) !== g) {
         generation.set(c.partner1Id, g);
@@ -357,6 +360,13 @@ export function buildGraphFromTree(
     }
 
     for (const pc of Object.values(parentChildren)) {
+      if (hidden.has(pc.childId)) continue;
+      if (pc.coupleId && couples[pc.coupleId]) {
+        const c = couples[pc.coupleId];
+        if (hidden.has(c.partner1Id) || hidden.has(c.partner2Id)) continue;
+      } else if (pc.singleParentId && hidden.has(pc.singleParentId)) {
+        continue;
+      }
       const parentGen =
         pc.coupleId && couples[pc.coupleId]
           ? coupleGen(couples[pc.coupleId])
