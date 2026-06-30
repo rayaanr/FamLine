@@ -1,19 +1,12 @@
 "use client";
 
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import {
-  Plus,
-  Heart,
-  Baby,
-  Crown,
-  Minus,
-  HelpCircle,
-  Pencil,
-} from "lucide-react";
+import { Plus, Heart, Baby, Crown, Minus, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Popover,
+  PopoverArrow,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
@@ -41,7 +34,6 @@ export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
     onAddSpouse,
     onAddChild,
     onAddParent,
-    onAddUnknown,
     hasChildren,
     isCollapsed,
     hiddenCount,
@@ -184,11 +176,13 @@ export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
               <Plus className="size-3.5" />
             </PopoverTrigger>
             <PopoverContent
-              className="nodrag nopan w-52 p-1"
+              className="nodrag nopan w-44 p-1"
               side="bottom"
               align="center"
+              sideOffset={8}
               onClick={(e) => e.stopPropagation()}
             >
+              <PopoverArrow />
               <button
                 onClick={() => onAddSpouse(person.id)}
                 className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
@@ -209,32 +203,6 @@ export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
               >
                 <Crown className="size-3.5 shrink-0 text-amber-400" />
                 Add Parent
-              </button>
-
-              <div className="my-1 border-t border-border" />
-              <p className="px-2.5 pb-1 pt-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                Don&apos;t know them yet?
-              </p>
-              <button
-                onClick={() => onAddUnknown(person.id, "partner")}
-                className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-              >
-                <HelpCircle className="size-3.5 shrink-0" />
-                Unknown partner
-              </button>
-              <button
-                onClick={() => onAddUnknown(person.id, "parents")}
-                className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-              >
-                <HelpCircle className="size-3.5 shrink-0" />
-                Unknown parents
-              </button>
-              <button
-                onClick={() => onAddUnknown(person.id, "child")}
-                className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-              >
-                <HelpCircle className="size-3.5 shrink-0" />
-                Unknown child
               </button>
             </PopoverContent>
           </Popover>

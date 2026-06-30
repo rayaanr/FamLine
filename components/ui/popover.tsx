@@ -80,8 +80,22 @@ function PopoverDescription({
   )
 }
 
+function PopoverArrow({ className, ...props }: PopoverPrimitive.Arrow.Props) {
+  return (
+    <PopoverPrimitive.Arrow
+      data-slot="popover-arrow"
+      className={cn(
+        "data-[side=bottom]:top-[-5px] data-[side=top]:bottom-[-5px] data-[side=left]:right-[-5px] data-[side=right]:left-[-5px] fill-popover drop-shadow-sm [filter:drop-shadow(0_1px_0_hsl(var(--foreground)/0.1))]",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
 export {
   Popover,
+  PopoverArrow,
   PopoverContent,
   PopoverDescription,
   PopoverHeader,
