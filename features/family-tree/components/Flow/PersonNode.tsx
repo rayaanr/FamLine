@@ -1,7 +1,7 @@
 "use client";
 
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { Plus, Heart, Baby, Crown, Minus, Pencil } from "lucide-react";
+import { Plus, Heart, Baby, Crown, Minus, Pencil, GitBranch } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -38,6 +38,10 @@ export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
     isCollapsed,
     hiddenCount,
     onToggleCollapse,
+    hasParents,
+    isAncestryCollapsed,
+    ancestorCount,
+    onToggleAncestry,
   } = data;
 
   const { canEdit } = useTreeAccess();
@@ -162,6 +166,33 @@ export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
           )}
         </div>
       </div>
+
+      {/* Top indicator: ancestry branch collapse. Only shown when this person
+          has parents in the tree so the user can fold the in-law branch. */}
+      {canEdit && hasParents && (
+        <div className="nodrag nopan absolute -top-3 left-1/2 flex -translate-x-1/2 items-center">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleAncestry?.(`ancestry-${person.id}`);
+            }}
+            className={cn(
+              "flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold leading-none shadow-sm transition-colors",
+              isAncestryCollapsed
+                ? "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20"
+                : "border-border bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground",
+            )}
+            title={
+              isAncestryCollapsed
+                ? `Show ${ancestorCount} hidden ancestor${ancestorCount === 1 ? "" : "s"}`
+                : "Hide ancestry branch"
+            }
+          >
+            <GitBranch className="size-2.5" />
+            {isAncestryCollapsed && ancestorCount}
+          </button>
+        </div>
+      )}
 
       {/* Bottom-border controls: + Add and collapse toggle. Editors only -
           collapse state is persisted, so viewers can't toggle it. */}

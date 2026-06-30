@@ -147,6 +147,7 @@ export const useFamilyStore = create<FamilyStoreState>()((set) => {
         const collapsed = t.collapsed.filter((key) => {
           if (key.startsWith('person-')) return !idSet.has(key.slice('person-'.length))
           if (key.startsWith('couple-')) return !removedCoupleIds.has(key.slice('couple-'.length))
+          if (key.startsWith('ancestry-')) return !idSet.has(key.slice('ancestry-'.length))
           return true
         })
         return { people, couples, parentChildren, collapsed }

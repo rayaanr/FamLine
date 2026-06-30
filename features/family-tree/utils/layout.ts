@@ -31,6 +31,11 @@ export interface PersonNodeData extends Record<string, unknown> {
   hiddenCount?: number;
   hasChildren?: boolean;
   onToggleCollapse?: (nodeId: string) => void;
+  // Ancestry branch collapse (upward — hides parents / grandparents).
+  hasParents?: boolean;
+  isAncestryCollapsed?: boolean;
+  ancestorCount?: number;
+  onToggleAncestry?: (nodeId: string) => void;
 }
 
 export interface CoupleNodeData extends Record<string, unknown> {
@@ -64,6 +69,7 @@ export interface NodeCallbacks {
   onAddUnknown: (id: string, kind: UnknownRelativeKind) => void;
   onEditCouple: (id: string) => void;
   onToggleCollapse: (nodeId: string) => void;
+  onToggleAncestry: (nodeId: string) => void;
 }
 
 interface Point {
@@ -112,9 +118,44 @@ export function buildGraphFromTree(
   const couplesOf = (personId: string) => personCouples.get(personId) ?? [];
   const soleChildrenOf = (personId: string) =>
     singleParentChildren.get(personId) ?? [];
-  const isParentless = (id: string) => !childHasParents.has(id);
   const otherPartner = (couple: Couple, id: string) =>
     couple.partner1Id === id ? couple.partner2Id : couple.partner1Id;
+
+  // People whose ancestry is collapsed — treated as parentless for layout so
+  // they anchor as roots / spouses even though they have parents in the data.
+  const ancestryCollapsed = new Set(
+    [...collapsed]
+      .filter((k) => k.startsWith("ancestry-"))
+      .map((k) => k.slice("ancestry-".length)),
+  );
+  const isParentless = (id: string) =>
+    !childHasParents.has(id) || ancestryCollapsed.has(id);
+
+  // Walk upward from personId, adding every ancestor (person IDs) to `seen`.
+  const collectAncestors = (personId: string, seen: Set<string>): void => {
+    for (const pc of Object.values(parentChildren)) {
+      if (pc.childId !== personId) continue;
+      if (pc.coupleId && couples[pc.coupleId]) {
+        const c = couples[pc.coupleId];
+        for (const pid of [c.partner1Id, c.partner2Id]) {
+          if (!seen.has(pid)) {
+            seen.add(pid);
+            collectAncestors(pid, seen);
+          }
+        }
+      } else if (pc.singleParentId && people[pc.singleParentId]) {
+        if (!seen.has(pc.singleParentId)) {
+          seen.add(pc.singleParentId);
+          collectAncestors(pc.singleParentId, seen);
+        }
+      }
+    }
+  };
+  const countAncestors = (personId: string): number => {
+    const seen = new Set<string>();
+    collectAncestors(personId, seen);
+    return seen.size;
+  };
 
   // ── Collapse: a collapsed point lays out as a leaf (no descendants) ──────────
   const coupleCollapsed = (coupleId: string) =>
@@ -423,14 +464,16 @@ export function buildGraphFromTree(
     return maxRight - minLeft;
   };
 
-  // Everyone living below a collapsed point - they must not be placed at all
-  // (otherwise the safety net below would re-add them as stray roots).
+  // Everyone living below a collapsed point (descendants) or above an
+  // ancestry-collapsed point (ancestors) must not be placed at all.
   const hidden = new Set<string>();
   for (const key of collapsed) {
     if (key.startsWith("couple-"))
       countCoupleDescendants(key.slice("couple-".length), hidden);
     else if (key.startsWith("person-"))
       countPersonDescendants(key.slice("person-".length), hidden);
+    else if (key.startsWith("ancestry-"))
+      collectAncestors(key.slice("ancestry-".length), hidden);
   }
 
   // ── Choose roots & run placement ────────────────────────────────────────────
@@ -443,6 +486,8 @@ export function buildGraphFromTree(
   };
   for (const c of Object.values(couples)) {
     if (claimed.has(c.partner1Id) || claimed.has(c.partner2Id)) continue;
+    // Skip couples whose partners are hidden ancestors.
+    if (hidden.has(c.partner1Id) || hidden.has(c.partner2Id)) continue;
     if (isParentless(c.partner1Id) && isParentless(c.partner2Id)) {
       placeRoot(c.partner1Id);
     }
@@ -485,6 +530,12 @@ export function buildGraphFromTree(
           ? countPersonDescendants(person.id, new Set([person.id]))
           : 0,
         onToggleCollapse: callbacks.onToggleCollapse,
+        hasParents: childHasParents.has(person.id),
+        isAncestryCollapsed: ancestryCollapsed.has(person.id),
+        ancestorCount: ancestryCollapsed.has(person.id)
+          ? countAncestors(person.id)
+          : 0,
+        onToggleAncestry: callbacks.onToggleAncestry,
       },
     });
   }
@@ -535,6 +586,9 @@ export function buildGraphFromTree(
 
   for (const pc of Object.values(parentChildren)) {
     if (!personPos.has(pc.childId)) continue; // child is inside a collapsed branch
+    // Also skip when the parent side is hidden (ancestry collapse).
+    if (pc.coupleId && !couplePos.has(pc.coupleId)) continue;
+    if (pc.singleParentId && !personPos.has(pc.singleParentId)) continue;
     if (pc.coupleId && couples[pc.coupleId]) {
       edges.push({
         id: `parentchild-${pc.id}`,

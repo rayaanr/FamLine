@@ -177,6 +177,7 @@ export function FamilyTreeCanvas() {
       onAddUnknown: handleAddUnknown,
       onEditCouple: handleEditCouple,
       onToggleCollapse: toggleCollapse,
+      onToggleAncestry: toggleCollapse,
     }),
     [
       handleEditPerson,
