@@ -218,159 +218,209 @@ export function buildGraphFromTree(
     }
   }
 
-  // ── Recursive placement ────────────────────────────────────────────────────
+  // ── Contour-based placement (Reingold–Tilford style) ────────────────────────
+  // Each subtree is laid out in local coordinates with its root person's center
+  // at x = 0. We track a left/right *contour* (the silhouette: min/max edge per
+  // generation row) so siblings are packed by their actual per-row outline, not
+  // a bounding box. A leaf sibling therefore tucks in next to its sibling's top
+  // row instead of being pushed past that sibling's entire (possibly huge)
+  // descendant subtree.
   const personPos = new Map<string, Point>(); // top-left of person nodes
   const couplePos = new Map<string, Point>(); // top-left of couple nodes
-  const placed = new Set<string>();
+  const claimed = new Set<string>(); // a node belongs to exactly one parent
 
-  const rowY = (id: string) => (generation.get(id) ?? 0) * ROW_H;
-  const setPersonCenter = (id: string, cx: number) =>
-    personPos.set(id, { x: cx - PERSON_W / 2, y: rowY(id) });
-  const setCoupleCenter = (coupleId: string, cx: number, partnerId: string) =>
-    couplePos.set(coupleId, {
-      x: cx - COUPLE_W / 2,
-      y: rowY(partnerId) + (PERSON_H - COUPLE_H) / 2,
-    });
+  // A contour maps a generation row → an x edge (min for left, max for right).
+  type Contour = Map<number, number>;
+  interface PlacedNode {
+    id: string;
+    cx: number; // center x, relative to this shape's anchor
+    row: number; // generation
+  }
+  interface Shape {
+    persons: PlacedNode[];
+    couples: PlacedNode[];
+    left: Contour; // min left edge per row
+    right: Contour; // max right edge per row
+  }
 
-  // Width of a horizontal band of sibling subtrees.
-  const bandWidth = (ids: string[]): number => {
-    if (ids.length === 0) return 0;
-    return (
-      ids.reduce((w, id) => w + measure(id), 0) + SIBLING_GAP * (ids.length - 1)
-    );
+  const emptyShape = (): Shape => ({
+    persons: [],
+    couples: [],
+    left: new Map(),
+    right: new Map(),
+  });
+
+  const addPersonNode = (s: Shape, id: string, cx: number, row: number) => {
+    s.persons.push({ id, cx, row });
+    s.left.set(row, Math.min(s.left.get(row) ?? Infinity, cx - PERSON_W / 2));
+    s.right.set(row, Math.max(s.right.get(row) ?? -Infinity, cx + PERSON_W / 2));
   };
+  // Couple nodes sit in the gap between their two partners, so their tiny box is
+  // always inside the partners' extent and never widens the contour.
+  const addCoupleNode = (s: Shape, id: string, cx: number, row: number) =>
+    s.couples.push({ id, cx, row });
 
-  // measure(personId) → total horizontal extent of this person's whole block
-  // (the person, every spouse, and all descendants). Memoised. Always an
-  // upper bound on what place() consumes, so siblings never overlap.
-  const widthMemo = new Map<string, number>();
-  const measure = (id: string): number => {
-    const cached = widthMemo.get(id);
-    if (cached !== undefined) return cached;
-    widthMemo.set(id, PERSON_W); // break cycles defensively
-
-    const couples = couplesOf(id);
-    const soleKids = visibleSoleChildrenOf(id);
-
-    let width: number;
-
-    if (couples.length === 0) {
-      width = soleKids.length
-        ? Math.max(PERSON_W, bandWidth(soleKids))
-        : PERSON_W;
-    } else if (couples.length === 1) {
-      const band = bandWidth(visibleChildrenOf(couples[0]));
-      const topRow = 2 * PERSON_W + 2 * SPOUSE_GAP + COUPLE_W;
-      width = Math.max(band, topRow);
-    } else {
-      // Multiple marriages: spouse · ♥ · person · ♥ · spouse · …
-      // (partners stay adjacent; children of each couple hang under its node)
-      const topRow =
-        (couples.length + 1) * PERSON_W +
-        couples.length * SPOUSE_GAP +
-        Math.max(0, couples.length - 1) * COUPLE_W;
-      const groups = couples
-        .map((cid) => bandWidth(visibleChildrenOf(cid)))
-        .filter((w) => w > 0);
-      const kidsTotal =
-        groups.reduce((a, b) => a + b, 0) +
-        Math.max(0, groups.length - 1) * SIBLING_GAP;
-      width = Math.max(topRow, kidsTotal);
-    }
-
-    // Fold in any single-parent children that hang directly off this person.
-    if (couples.length > 0 && soleKids.length) {
-      width = Math.max(width, bandWidth(soleKids));
-    }
-
-    widthMemo.set(id, width);
-    return width;
-  };
-
-  // place(personId, leftX) → assigns coordinates; returns the block width.
-  const place = (id: string, leftX: number): number => {
-    if (placed.has(id)) return 0;
-    placed.add(id);
-
-    const width = measure(id);
-    const center = leftX + width / 2;
-    const couples = couplesOf(id);
-    const soleKids = visibleSoleChildrenOf(id);
-
-    const placeBand = (ids: string[], bandLeftX: number) => {
-      let cursor = bandLeftX;
-      for (const childId of ids) {
-        cursor += place(childId, cursor) + SIBLING_GAP;
-      }
+  const translateShape = (s: Shape, dx: number): Shape => {
+    if (dx === 0) return s;
+    const shift = (c: Contour): Contour => {
+      const out: Contour = new Map();
+      for (const [row, v] of c) out.set(row, v + dx);
+      return out;
     };
+    return {
+      persons: s.persons.map((n) => ({ ...n, cx: n.cx + dx })),
+      couples: s.couples.map((n) => ({ ...n, cx: n.cx + dx })),
+      left: shift(s.left),
+      right: shift(s.right),
+    };
+  };
 
-    if (couples.length === 0) {
-      if (soleKids.length) {
-        const bw = bandWidth(soleKids);
-        placeBand(soleKids, center - bw / 2);
+  // Minimal rightward shift so `next`'s left contour clears `acc`'s right
+  // contour by SIBLING_GAP on every shared row. Siblings always share their own
+  // generation row, so this is well-defined.
+  const separation = (acc: Contour, next: Contour): number => {
+    let dx = -Infinity;
+    for (const [row, l] of next) {
+      const r = acc.get(row);
+      if (r !== undefined) dx = Math.max(dx, r + SIBLING_GAP - l);
+    }
+    return dx === -Infinity ? 0 : dx;
+  };
+
+  // Pack a list of child subtrees left-to-right by contour. Returns the merged
+  // shape plus each child root's center (used to center the parent over them).
+  const buildShape = (id: string): Shape | null => buildShapeImpl(id);
+
+  function buildBand(childIds: string[]): {
+    merged: Shape;
+    centers: number[];
+  } {
+    const merged = emptyShape();
+    const centers: number[] = [];
+    const accRight: Contour = new Map();
+    let first = true;
+    for (const cid of childIds) {
+      const child = buildShape(cid);
+      if (!child) continue; // already claimed elsewhere (shared-descendant DAG)
+      const dx = first ? 0 : separation(accRight, child.left);
+      const shifted = translateShape(child, dx);
+      centers.push(dx); // child root person sits at x = dx (it was at 0 locally)
+      merged.persons.push(...shifted.persons);
+      merged.couples.push(...shifted.couples);
+      for (const [row, v] of shifted.left)
+        merged.left.set(row, Math.min(merged.left.get(row) ?? Infinity, v));
+      for (const [row, v] of shifted.right) {
+        merged.right.set(row, Math.max(merged.right.get(row) ?? -Infinity, v));
+        accRight.set(row, Math.max(accRight.get(row) ?? -Infinity, v));
       }
-      setPersonCenter(id, center);
-      return width;
+      first = false;
+    }
+    return { merged, centers };
+  }
+
+  // Re-anchor a shape so the root person's center is at x = 0.
+  const reanchor = (s: Shape, rootId: string): Shape => {
+    const root = s.persons.find((p) => p.id === rootId);
+    return root ? translateShape(s, -root.cx) : s;
+  };
+
+  // Fold a child band into a shape (the band is already positioned).
+  const absorbBand = (s: Shape, band: Shape) => {
+    s.persons.push(...band.persons);
+    s.couples.push(...band.couples);
+    for (const [row, v] of band.left)
+      s.left.set(row, Math.min(s.left.get(row) ?? Infinity, v));
+    for (const [row, v] of band.right)
+      s.right.set(row, Math.max(s.right.get(row) ?? -Infinity, v));
+  };
+
+  function buildShapeImpl(id: string): Shape | null {
+    if (claimed.has(id)) return null;
+    claimed.add(id);
+
+    const g = generation.get(id) ?? 0;
+    const coupleIds = couplesOf(id);
+    const shape = emptyShape();
+
+    // All descendant blocks below this person, in one band: each couple's
+    // visible children (couple order), then this person's sole children.
+    const bandChildIds: string[] = [];
+    for (const cid of coupleIds) bandChildIds.push(...visibleChildrenOf(cid));
+    bandChildIds.push(...visibleSoleChildrenOf(id));
+
+    const { merged: band, centers } = buildBand(bandChildIds);
+    // Anchor the parent over the midpoint of the outermost children.
+    const bandAnchor = centers.length
+      ? (centers[0] + centers[centers.length - 1]) / 2
+      : 0;
+
+    if (coupleIds.length === 0) {
+      absorbBand(shape, band);
+      addPersonNode(shape, id, bandAnchor, g);
+      return reanchor(shape, id);
     }
 
-    if (couples.length === 1) {
-      const couple = couples[0];
-      const spouse = otherPartner(tree.couples[couple], id);
-      placed.add(spouse);
-
-      const kids = visibleChildrenOf(couple);
-      const bw = bandWidth(kids);
-      if (kids.length) placeBand(kids, center - bw / 2);
-
-      // Couple node centered in the block (and over the children band).
-      setCoupleCenter(couple, center, id);
-      setPersonCenter(id, center - PARTNER_OFFSET);
-      setPersonCenter(spouse, center + PARTNER_OFFSET);
-    } else {
-      // Multiple marriages - keep the shared person flanked by their partners:
-      //   [spouse1] ♥ [person] ♥ [spouse2]
-      // First couple sits to the left of the person, the rest to the right.
-      setPersonCenter(id, center);
-
-      const firstSpouse = otherPartner(tree.couples[couples[0]], id);
-      placed.add(firstSpouse);
-      setCoupleCenter(couples[0], center - PARTNER_OFFSET, id);
-      setPersonCenter(firstSpouse, center - 2 * PARTNER_OFFSET);
-
-      let rc = center + PARTNER_OFFSET; // first right-hand couple node
-      for (let j = 1; j < couples.length; j++) {
-        const spouse = otherPartner(tree.couples[couples[j]], id);
-        placed.add(spouse);
-        setCoupleCenter(couples[j], rc, id);
-        setPersonCenter(spouse, rc + PARTNER_OFFSET);
-        rc += 2 * PARTNER_OFFSET + COUPLE_W;
-      }
-
-      // All children form one band centered under the person, grouped by couple
-      // so each couple node sits above its own kids.
-      const groups = couples
-        .map((cid) => ({
-          kids: visibleChildrenOf(cid),
-          w: bandWidth(visibleChildrenOf(cid)),
-        }))
-        .filter((g) => g.kids.length);
-      const kidsTotal =
-        groups.reduce((a, g) => a + g.w, 0) +
-        Math.max(0, groups.length - 1) * SIBLING_GAP;
-      let kc = center - kidsTotal / 2;
-      for (const g of groups) {
-        placeBand(g.kids, kc);
-        kc += g.w + SIBLING_GAP;
-      }
+    if (coupleIds.length === 1) {
+      const couple = tree.couples[coupleIds[0]];
+      const spouse = otherPartner(couple, id);
+      claimed.add(spouse);
+      // Couple node centered over the children; partners flank it.
+      absorbBand(shape, band);
+      addCoupleNode(shape, couple.id, bandAnchor, g);
+      addPersonNode(shape, id, bandAnchor - PARTNER_OFFSET, g);
+      addPersonNode(shape, spouse, bandAnchor + PARTNER_OFFSET, g);
+      return reanchor(shape, id);
     }
 
-    // Single-parent children of this person hang below them.
-    if (soleKids.length) {
-      const bw = bandWidth(soleKids);
-      placeBand(soleKids, center - bw / 2);
+    // Multiple marriages — keep the shared person flanked by partners:
+    //   [spouse1] ♥ [person] ♥ [spouse2] …
+    // The combined children band is centered under the person.
+    absorbBand(shape, band);
+    addPersonNode(shape, id, bandAnchor, g);
+
+    const c0 = tree.couples[coupleIds[0]];
+    const s0 = otherPartner(c0, id);
+    claimed.add(s0);
+    addCoupleNode(shape, c0.id, bandAnchor - PARTNER_OFFSET, g);
+    addPersonNode(shape, s0, bandAnchor - 2 * PARTNER_OFFSET, g);
+
+    let rc = bandAnchor + PARTNER_OFFSET; // first right-hand couple node
+    for (let j = 1; j < coupleIds.length; j++) {
+      const cj = tree.couples[coupleIds[j]];
+      const sj = otherPartner(cj, id);
+      claimed.add(sj);
+      addCoupleNode(shape, cj.id, rc, g);
+      addPersonNode(shape, sj, rc + PARTNER_OFFSET, g);
+      rc += 2 * PARTNER_OFFSET + COUPLE_W;
     }
 
-    return width;
+    return reanchor(shape, id);
+  }
+
+  // Write a finished shape to absolute coordinates with its left edge at originX.
+  // Returns the shape's total width so callers can advance the root cursor.
+  const writeShape = (s: Shape, originX: number): number => {
+    let minLeft = Infinity;
+    let maxRight = -Infinity;
+    for (const v of s.left.values()) minLeft = Math.min(minLeft, v);
+    for (const v of s.right.values()) maxRight = Math.max(maxRight, v);
+    if (!Number.isFinite(minLeft)) minLeft = 0;
+    if (!Number.isFinite(maxRight)) maxRight = 0;
+    const dx = originX - minLeft;
+
+    for (const p of s.persons) {
+      personPos.set(p.id, {
+        x: p.cx + dx - PERSON_W / 2,
+        y: p.row * ROW_H,
+      });
+    }
+    for (const c of s.couples) {
+      couplePos.set(c.id, {
+        x: c.cx + dx - COUPLE_W / 2,
+        y: c.row * ROW_H + (PERSON_H - COUPLE_H) / 2,
+      });
+    }
+    return maxRight - minLeft;
   };
 
   // Everyone living below a collapsed point - they must not be placed at all
@@ -387,22 +437,26 @@ export function buildGraphFromTree(
   // Founding couples (both partners parentless) anchor whole trees; descend
   // from one partner so the other is placed as a spouse.
   let rootCursor = 0;
+  const placeRoot = (id: string) => {
+    const shape = buildShape(id);
+    if (shape) rootCursor += writeShape(shape, rootCursor) + ROOT_GAP;
+  };
   for (const c of Object.values(couples)) {
-    if (placed.has(c.partner1Id) || placed.has(c.partner2Id)) continue;
+    if (claimed.has(c.partner1Id) || claimed.has(c.partner2Id)) continue;
     if (isParentless(c.partner1Id) && isParentless(c.partner2Id)) {
-      rootCursor += place(c.partner1Id, rootCursor) + ROOT_GAP;
+      placeRoot(c.partner1Id);
     }
   }
   // Remaining parentless people: single founders, or spouses not yet reached.
   for (const id of Object.keys(people)) {
-    if (placed.has(id) || hidden.has(id) || !isParentless(id)) continue;
-    rootCursor += place(id, rootCursor) + ROOT_GAP;
+    if (claimed.has(id) || hidden.has(id) || !isParentless(id)) continue;
+    placeRoot(id);
   }
   // Safety net for anything left (cycles, orphaned records) - but never resurrect
   // people hidden inside a collapsed branch.
   for (const id of Object.keys(people)) {
-    if (placed.has(id) || hidden.has(id)) continue;
-    rootCursor += place(id, rootCursor) + ROOT_GAP;
+    if (claimed.has(id) || hidden.has(id)) continue;
+    placeRoot(id);
   }
 
   // ── Build nodes ──────────────────────────────────────────────────────────────
