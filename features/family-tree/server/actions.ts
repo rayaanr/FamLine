@@ -12,7 +12,7 @@ import {
   requireTreeOwner,
   requireTreeView,
 } from "@/lib/tree-access";
-import { TREE_ROLES, type TreeRole } from "@/lib/permissions";
+import { TREE_ROLES, isSuperAdmin, type TreeRole } from "@/lib/permissions";
 import type { FamilyTree } from "@/features/family-tree/types";
 import { personDisplayName } from "@/features/family-tree/utils/person";
 import { buildMockFamily } from "@/features/family-tree/utils/mockData";
@@ -109,11 +109,14 @@ export async function createTree(name?: string): Promise<string> {
 }
 
 /**
- * Dev helper: create a tree pre-filled with the generated demo family. Surfaced
- * only in development from the gallery.
+ * Create a tree pre-filled with the generated demo family. Surfaced in the
+ * gallery to super admins only.
  */
 export async function createDemoTree(): Promise<string> {
   const session = await requireAuth();
+  if (!isSuperAdmin(session.user.role)) {
+    throw new Error("Not authorized");
+  }
   const id = nanoid();
   const data: FamilyTree = { ...buildMockFamily(), collapsed: [] };
   const slug = await insertTreeWithUniqueSlug({

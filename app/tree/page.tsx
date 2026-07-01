@@ -4,6 +4,7 @@ import Link from "next/link";
 import { TreeGallery } from "@/features/family-tree";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { requireAuth } from "@/lib/auth-server";
+import { isSuperAdmin } from "@/lib/permissions";
 import { listAccessibleTrees } from "@/lib/tree-access";
 
 export const metadata: Metadata = {
@@ -11,8 +12,9 @@ export const metadata: Metadata = {
 };
 
 export default async function TreePage() {
-  await requireAuth();
+  const session = await requireAuth();
   const trees = await listAccessibleTrees();
+  const superAdmin = isSuperAdmin(session.user.role);
 
   return (
     <div className="min-h-screen bg-background">
@@ -26,7 +28,7 @@ export default async function TreePage() {
         </Link>
         <UserMenu />
       </header>
-      <TreeGallery initialTrees={trees} />
+      <TreeGallery initialTrees={trees} canLoadDemo={superAdmin} />
     </div>
   );
 }

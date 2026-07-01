@@ -13,9 +13,13 @@ import type { TreeSummary } from '@/lib/tree-access'
 import { createDemoTree, deleteTree, renameTree } from '../server/actions'
 import { NewTreeDialog } from './dialogs/NewTreeDialog'
 
-const isDev = process.env.NODE_ENV === 'development'
-
-export function TreeGallery({ initialTrees }: { initialTrees: TreeSummary[] }) {
+export function TreeGallery({
+  initialTrees,
+  canLoadDemo = false,
+}: {
+  initialTrees: TreeSummary[]
+  canLoadDemo?: boolean
+}) {
   const router = useRouter()
   const [, startTransition] = useTransition()
 
@@ -81,12 +85,12 @@ export function TreeGallery({ initialTrees }: { initialTrees: TreeSummary[] }) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {isDev && (
+          {canLoadDemo && (
             <Button
               variant="outline"
               onClick={handleLoadDemo}
               className="gap-1.5"
-              title="Create a tree pre-filled with demo data (dev only)"
+              title="Create a tree pre-filled with demo data"
             >
               <FlaskConical className="size-4" />
               Load demo
