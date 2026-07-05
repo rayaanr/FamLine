@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useFamilyStore } from '../hooks/useFamilyStore'
+import { useFamilyStore, flushPendingSaves } from '../hooks/useFamilyStore'
 import { TreeAccessProvider } from '../hooks/useTreeAccess'
 import { FamilyTreeCanvas } from './Flow/FamilyTreeCanvas'
 import type { NamedFamilyTree } from '../types'
@@ -33,6 +33,12 @@ export function TreeView({
   useEffect(() => {
     loadTree(tree)
   }, [tree, loadTree])
+
+  // Flush any debounced autosave still pending when navigating away from the
+  // canvas (SPA route change unmounts this without firing `pagehide`).
+  useEffect(() => {
+    return () => flushPendingSaves()
+  }, [])
 
   if (!isActive) return <Spinner />
 

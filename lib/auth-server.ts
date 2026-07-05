@@ -1,12 +1,18 @@
+import { cache } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { isSuperAdmin } from "@/lib/permissions";
 
-/** Current session (with user) for the incoming request, or null. */
-export async function getSession() {
+/**
+ * Current session (with user) for the incoming request, or null. Wrapped in
+ * React `cache()` so the several guards/pages that each resolve the session
+ * within one request (e.g. `requireAuth` + `listAccessibleTrees`) share a
+ * single lookup instead of hitting Better Auth twice.
+ */
+export const getSession = cache(async () => {
   return auth.api.getSession({ headers: await headers() });
-}
+});
 
 /**
  * Gate a route on being signed in. Tree access itself is resolved per-tree in

@@ -3,7 +3,7 @@
 import { nanoid } from "nanoid";
 import { revalidatePath } from "next/cache";
 import { and, eq, isNull, gt, desc, or, like } from "drizzle-orm";
-import { db } from "@/db";
+import { db, isNeonHttp } from "@/db";
 import { trees, treeMembership, peopleIndex, user, treeInvitation } from "@/db/schema";
 import { requireAuth } from "@/lib/auth-server";
 import { slugify } from "@/features/family-tree/utils/slug";
@@ -26,10 +26,9 @@ const emptyTree = (): FamilyTree => ({
   collapsed: [],
 });
 
-/** Rebuild the searchable people index for a tree from its JSONB graph. */
-async function rebuildPeopleIndex(treeId: string, data: FamilyTree) {
-  await db.delete(peopleIndex).where(eq(peopleIndex.treeId, treeId));
-  const rows = Object.values(data.people ?? {}).map((p) => {
+/** Row shape for `people_index`, derived from a tree's JSONB graph. */
+function buildPeopleIndexRows(treeId: string, data: FamilyTree) {
+  return Object.values(data.people ?? {}).map((p) => {
     const year = p.birthDate ? Number.parseInt(p.birthDate.slice(0, 4), 10) : NaN;
     return {
       id: p.id,
@@ -39,6 +38,12 @@ async function rebuildPeopleIndex(treeId: string, data: FamilyTree) {
       gender: p.gender ?? null,
     };
   });
+}
+
+/** Rebuild the searchable people index for a tree from its JSONB graph. */
+async function rebuildPeopleIndex(treeId: string, data: FamilyTree) {
+  await db.delete(peopleIndex).where(eq(peopleIndex.treeId, treeId));
+  const rows = buildPeopleIndexRows(treeId, data);
   if (rows.length > 0) await db.insert(peopleIndex).values(rows);
 }
 
@@ -151,14 +156,52 @@ export async function deleteTree(id: string): Promise<void> {
   revalidatePath("/tree");
 }
 
-/** Persist the full tree graph (editor+) and rebuild the people index. */
-export async function saveTreeData(id: string, data: FamilyTree): Promise<void> {
+/**
+ * Persist the full tree graph (editor+) and rebuild the people index.
+ *
+ * The graph update and index rebuild commit atomically (no window where
+ * `people_index` is empty/stale relative to `data`): neon-http has no real
+ * transactions over HTTP, so it uses Neon's `batch` RPC (one round-trip,
+ * atomic); local dev's node-postgres pool uses a real `transaction`. Pass
+ * `skipIndex: true` when the mutation didn't touch `people` (e.g. a
+ * collapse/expand toggle) to avoid rebuilding an index that hasn't changed.
+ */
+export async function saveTreeData(
+  id: string,
+  data: FamilyTree,
+  opts?: { skipIndex?: boolean },
+): Promise<void> {
   await requireTreeEdit(id);
-  await db
+  const rows = opts?.skipIndex ? null : buildPeopleIndexRows(id, data);
+
+  if (!isNeonHttp(db)) {
+    // Local dev (node-postgres): a real transaction.
+    await db.transaction(async (tx) => {
+      await tx.update(trees).set({ data, updatedAt: new Date() }).where(eq(trees.id, id));
+      if (rows) {
+        await tx.delete(peopleIndex).where(eq(peopleIndex.treeId, id));
+        if (rows.length > 0) await tx.insert(peopleIndex).values(rows);
+      }
+    });
+    return;
+  }
+
+  const updateTree = db
     .update(trees)
     .set({ data, updatedAt: new Date() })
     .where(eq(trees.id, id));
-  await rebuildPeopleIndex(id, data);
+
+  if (!rows) {
+    await updateTree;
+    return;
+  }
+  const deleteIndex = db.delete(peopleIndex).where(eq(peopleIndex.treeId, id));
+  if (rows.length === 0) {
+    await db.batch([updateTree, deleteIndex]);
+    return;
+  }
+  const insertIndex = db.insert(peopleIndex).values(rows);
+  await db.batch([updateTree, deleteIndex, insertIndex]);
 }
 
 // ── Membership management (owner only) ───────────────────────────────────────
@@ -174,22 +217,23 @@ export interface MemberInfo {
 export async function listMembers(treeId: string): Promise<MemberInfo[]> {
   const { tree } = await requireTreeView(treeId);
 
-  const [owner] = await db
-    .select({ id: user.id, name: user.name, email: user.email })
-    .from(user)
-    .where(eq(user.id, tree.ownerId))
-    .limit(1);
-
-  const collaborators = await db
-    .select({
-      userId: treeMembership.userId,
-      role: treeMembership.role,
-      name: user.name,
-      email: user.email,
-    })
-    .from(treeMembership)
-    .innerJoin(user, eq(user.id, treeMembership.userId))
-    .where(eq(treeMembership.treeId, treeId));
+  const [[owner], collaborators] = await Promise.all([
+    db
+      .select({ id: user.id, name: user.name, email: user.email })
+      .from(user)
+      .where(eq(user.id, tree.ownerId))
+      .limit(1),
+    db
+      .select({
+        userId: treeMembership.userId,
+        role: treeMembership.role,
+        name: user.name,
+        email: user.email,
+      })
+      .from(treeMembership)
+      .innerJoin(user, eq(user.id, treeMembership.userId))
+      .where(eq(treeMembership.treeId, treeId)),
+  ]);
 
   const members: MemberInfo[] = [];
   if (owner) {

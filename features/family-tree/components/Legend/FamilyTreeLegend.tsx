@@ -11,19 +11,8 @@ import { coupleStatusConfig } from "../../utils/coupleStatus";
 import { genderConfig } from "../../utils/genderConfig";
 import type { CoupleStatus, Gender } from "../../types";
 
-const genderItems: { label: string; gender: Gender }[] = [
-  { label: "Male",    gender: "male" },
-  { label: "Female",  gender: "female" },
-  { label: "Other",   gender: "other" },
-  { label: "Unknown", gender: "unknown" },
-];
-
-const statusItems: { label: string; status: CoupleStatus }[] = [
-  { label: "Married",   status: "married" },
-  { label: "Partnered", status: "partnered" },
-  { label: "Separated", status: "separated" },
-  { label: "Divorced",  status: "divorced" },
-];
+const genderOrder: Gender[] = ["male", "female", "other", "unknown"];
+const statusOrder: CoupleStatus[] = ["married", "partnered", "separated", "divorced"];
 
 const lineItems = [
   { label: "Biological", stroke: "#64748b", dash: undefined },
@@ -76,12 +65,12 @@ export function FamilyTreeLegend() {
       <CollapsibleContent>
         <div className="space-y-3 px-3 pb-3">
           <Section title="Person · gender">
-            {genderItems.map(({ label, gender }) => {
+            {genderOrder.map((gender) => {
               const cfg = genderConfig[gender];
               return (
                 <Row
                   key={gender}
-                  label={label}
+                  label={cfg.label}
                   swatch={<cfg.icon className={cn("size-3.5", cfg.iconColor)} />}
                 />
               );
@@ -89,12 +78,12 @@ export function FamilyTreeLegend() {
           </Section>
 
           <Section title="Couple · status">
-            {statusItems.map(({ label, status }) => {
+            {statusOrder.map((status) => {
               const cfg = coupleStatusConfig[status];
               return (
                 <Row
                   key={status}
-                  label={label}
+                  label={cfg.label}
                   swatch={
                     <span className={cn("flex size-5 items-center justify-center rounded-full border", cfg.bg)}>
                       <cfg.icon

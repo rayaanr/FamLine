@@ -12,18 +12,34 @@ export function getDescendantIds(
 ): Set<string> {
   const { couples, parentChildren } = tree;
 
-  const couplesOf = (pid: string) =>
-    Object.values(couples).filter(
-      (c) => c.partner1Id === pid || c.partner2Id === pid,
-    );
-  const childrenOfCouple = (cid: string) =>
-    Object.values(parentChildren)
-      .filter((pc) => pc.coupleId === cid)
-      .map((pc) => pc.childId);
-  const soleChildrenOf = (pid: string) =>
-    Object.values(parentChildren)
-      .filter((pc) => pc.singleParentId === pid)
-      .map((pc) => pc.childId);
+  // Index maps built once, up front — the recursive walk below visits many
+  // nodes, and re-filtering all couples/parentChildren per node (as the old
+  // version did) is O(n²) on a large branch.
+  const couplesByPerson = new Map<string, Couple[]>();
+  for (const c of Object.values(couples)) {
+    for (const pid of [c.partner1Id, c.partner2Id]) {
+      const arr = couplesByPerson.get(pid);
+      if (arr) arr.push(c);
+      else couplesByPerson.set(pid, [c]);
+    }
+  }
+  const childrenByCouple = new Map<string, string[]>();
+  const childrenBySingleParent = new Map<string, string[]>();
+  for (const pc of Object.values(parentChildren)) {
+    if (pc.coupleId) {
+      const arr = childrenByCouple.get(pc.coupleId);
+      if (arr) arr.push(pc.childId);
+      else childrenByCouple.set(pc.coupleId, [pc.childId]);
+    } else if (pc.singleParentId) {
+      const arr = childrenBySingleParent.get(pc.singleParentId);
+      if (arr) arr.push(pc.childId);
+      else childrenBySingleParent.set(pc.singleParentId, [pc.childId]);
+    }
+  }
+
+  const couplesOf = (pid: string) => couplesByPerson.get(pid) ?? [];
+  const childrenOfCouple = (cid: string) => childrenByCouple.get(cid) ?? [];
+  const soleChildrenOf = (pid: string) => childrenBySingleParent.get(pid) ?? [];
   const otherPartner = (c: Couple, id: string) =>
     c.partner1Id === id ? c.partner2Id : c.partner1Id;
 

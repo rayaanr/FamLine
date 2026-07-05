@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -22,18 +22,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from '@/components/ui/combobox'
 import { DatePicker } from '@/components/ui/date-picker'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { useFamilyStore, useActiveTree } from '../../hooks/useFamilyStore'
+import { genderConfig } from '../../utils/genderConfig'
+import { coupleStatusConfig } from '../../utils/coupleStatus'
+import type { CoupleStatus, Gender } from '../../types'
 
 // ─── Label maps ────────────────────────────────────────────────────────────────
-const statusLabels: Record<string, string> = {
-  married: 'Married',
-  partnered: 'Partnered',
-  divorced: 'Divorced',
-  separated: 'Separated',
-}
-
 const parentTypeLabels: Record<string, string> = {
   couple: 'Couple (two parents)',
   single: 'Single parent',
@@ -63,6 +67,57 @@ function PersonModeTabs({
       </TabsList>
       {children}
     </Tabs>
+  )
+}
+
+// ─── Searchable person/couple picker ───────────────────────────────────────────
+// A plain <Select> mounts one item per option, which on a tree with hundreds of
+// people means hundreds of DOM nodes every time the dialog opens. This filters
+// locally and caps the rendered list instead of showing everything at once.
+const MAX_COMBOBOX_RESULTS = 50
+
+function EntityCombobox({
+  ids,
+  labelOf,
+  value,
+  onValueChange,
+  placeholder,
+}: {
+  ids: string[]
+  labelOf: (id: string) => string
+  value: string
+  onValueChange: (id: string) => void
+  placeholder: string
+}) {
+  const [query, setQuery] = useState('')
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const matches = q ? ids.filter((id) => labelOf(id).toLowerCase().includes(q)) : ids
+    return matches.slice(0, MAX_COMBOBOX_RESULTS)
+  }, [ids, query, labelOf])
+
+  return (
+    <Combobox
+      items={filtered}
+      filter={null}
+      value={value || null}
+      onValueChange={(v) => onValueChange((v as string | null) ?? '')}
+      onInputValueChange={setQuery}
+      itemToStringLabel={labelOf}
+    >
+      <ComboboxInput placeholder={placeholder} showClear />
+      <ComboboxContent>
+        <ComboboxEmpty>No matches found.</ComboboxEmpty>
+        <ComboboxList>
+          {(id: string) => (
+            <ComboboxItem key={id} value={id}>
+              {labelOf(id)}
+            </ComboboxItem>
+          )}
+        </ComboboxList>
+      </ComboboxContent>
+    </Combobox>
   )
 }
 
@@ -131,7 +186,7 @@ function CoupleForm({
   const addPerson = useFamilyStore((s) => s.addPerson)
   const addCouple = useFamilyStore((s) => s.addCouple)
 
-  const personOptions = Object.values(people)
+  const personIds = Object.keys(people)
   const personLabel = (id: string) => {
     const p = people[id]
     return p ? `${p.firstName} ${p.lastName}`.trim() : id
@@ -246,10 +301,11 @@ function CoupleForm({
                   <Select value={field.value} onValueChange={field.onChange}>
                     <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="male">Male</SelectItem>
-                      <SelectItem value="female">Female</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
-                      <SelectItem value="unknown">Unknown</SelectItem>
+                      {(Object.keys(genderConfig) as Gender[]).map((g) => (
+                        <SelectItem key={g} value={g}>
+                          {genderConfig[g].label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 )}
@@ -262,22 +318,13 @@ function CoupleForm({
               name="partner2Id"
               control={control}
               render={({ field }) => (
-                <Select
-                  value={field.value}
+                <EntityCombobox
+                  ids={personIds}
+                  labelOf={personLabel}
+                  value={field.value ?? ''}
                   onValueChange={field.onChange}
-                  itemToStringLabel={personLabel}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select person..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {personOptions.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.firstName} {p.lastName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  placeholder="Select person..."
+                />
               )}
             />
             {errors.partner2Id && (
@@ -297,16 +344,17 @@ function CoupleForm({
             <Select
               value={field.value}
               onValueChange={field.onChange}
-              itemToStringLabel={(v) => statusLabels[v as string] ?? v}
+              itemToStringLabel={(v) => coupleStatusConfig[v as CoupleStatus]?.label ?? v}
             >
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="married">Married</SelectItem>
-                <SelectItem value="partnered">Partnered</SelectItem>
-                <SelectItem value="divorced">Divorced</SelectItem>
-                <SelectItem value="separated">Separated</SelectItem>
+                {(Object.keys(coupleStatusConfig) as CoupleStatus[]).map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {coupleStatusConfig[s].label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           )}
@@ -369,8 +417,8 @@ function ParentChildForm({
   const addPerson = useFamilyStore((s) => s.addPerson)
   const addParentChild = useFamilyStore((s) => s.addParentChild)
 
-  const personOptions = Object.values(people)
-  const coupleOptions = Object.values(couples)
+  const personIds = Object.keys(people)
+  const coupleIds = Object.keys(couples)
 
   const personLabel = (id: string) => {
     const p = people[id]
@@ -526,10 +574,11 @@ function ParentChildForm({
                       <Select value={field.value} onValueChange={field.onChange}>
                         <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="male">Male</SelectItem>
-                          <SelectItem value="female">Female</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
-                          <SelectItem value="unknown">Unknown</SelectItem>
+                          {(Object.keys(genderConfig) as Gender[]).map((g) => (
+                            <SelectItem key={g} value={g}>
+                              {genderConfig[g].label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     )}
@@ -542,22 +591,13 @@ function ParentChildForm({
                   name="childId"
                   control={control}
                   render={({ field }) => (
-                    <Select
-                      value={field.value}
+                    <EntityCombobox
+                      ids={personIds}
+                      labelOf={personLabel}
+                      value={field.value ?? ''}
                       onValueChange={field.onChange}
-                      itemToStringLabel={personLabel}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select child..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {personOptions.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {p.firstName} {p.lastName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder="Select child..."
+                    />
                   )}
                 />
                 {errors.childId && (
@@ -600,22 +640,13 @@ function ParentChildForm({
             name="coupleId"
             control={control}
             render={({ field }) => (
-              <Select
-                value={field.value}
+              <EntityCombobox
+                ids={coupleIds}
+                labelOf={coupleLabel}
+                value={field.value ?? ''}
                 onValueChange={field.onChange}
-                itemToStringLabel={coupleLabel}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select couple..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {coupleOptions.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {coupleLabel(c.id)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder="Select couple..."
+              />
             )}
           />
           {errors.coupleId && (
@@ -667,10 +698,11 @@ function ParentChildForm({
                       <Select value={field.value} onValueChange={field.onChange}>
                         <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="male">Male</SelectItem>
-                          <SelectItem value="female">Female</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
-                          <SelectItem value="unknown">Unknown</SelectItem>
+                          {(Object.keys(genderConfig) as Gender[]).map((g) => (
+                            <SelectItem key={g} value={g}>
+                              {genderConfig[g].label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     )}
@@ -683,22 +715,13 @@ function ParentChildForm({
                   name="singleParentId"
                   control={control}
                   render={({ field }) => (
-                    <Select
-                      value={field.value}
+                    <EntityCombobox
+                      ids={personIds}
+                      labelOf={personLabel}
+                      value={field.value ?? ''}
                       onValueChange={field.onChange}
-                      itemToStringLabel={personLabel}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select parent..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {personOptions.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {p.firstName} {p.lastName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder="Select parent..."
+                    />
                   )}
                 />
               </TabsContent>

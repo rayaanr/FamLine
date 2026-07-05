@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Plus, Heart, Baby, Crown, Minus, Pencil, GitBranch } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -26,7 +27,9 @@ import { genderConfig } from "../../utils/genderConfig";
 // only - their box must keep its size so edge endpoints stay centered.
 const hiddenHandle = "!size-2.5 !opacity-0";
 
-export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
+// Memoized: React Flow re-renders every node component on internal store
+// changes (pan/select/hover), not just when this node's own `data` changes.
+function PersonNodeImpl({ data }: NodeProps<PersonFlowNode>) {
   const {
     person,
     onEdit,
@@ -267,3 +270,5 @@ export function PersonNode({ data }: NodeProps<PersonFlowNode>) {
     </div>
   );
 }
+
+export const PersonNode = memo(PersonNodeImpl);

@@ -19,6 +19,13 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 /** How long presigned URLs stay valid (seconds). Short by design. */
 const PRESIGN_TTL = 300;
 
+/**
+ * Longer TTL for read-only profile-photo thumbnails. These are re-signed on
+ * every canvas mount (`listProfilePhotos`); a short TTL forces that DB query +
+ * re-sign to repeat every 5 minutes even when nothing changed.
+ */
+export const PROFILE_PRESIGN_TTL = 3600;
+
 // Lazily created so a missing/placeholder config only fails when R2 is actually
 // used (not at import time - which would crash unrelated pages and the build).
 let cached: { client: S3Client; bucket: string } | null = null;
@@ -67,6 +74,7 @@ export function presignUpload(
 export function presignDownload(
   key: string,
   downloadName?: string,
+  ttlSeconds: number = PRESIGN_TTL,
 ): Promise<string> {
   const { client, bucket } = r2();
   return getSignedUrl(
@@ -80,7 +88,7 @@ export function presignDownload(
           }
         : {}),
     }),
-    { expiresIn: PRESIGN_TTL },
+    { expiresIn: ttlSeconds },
   );
 }
 

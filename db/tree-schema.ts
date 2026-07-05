@@ -76,6 +76,13 @@ export const mediaAsset = pgTable(
   (table) => [
     index("media_asset_treeId_idx").on(table.treeId),
     index("media_asset_tree_person_idx").on(table.treeId, table.personId),
+    // Covers the (treeId, personId, kind) filter used by confirmUpload's
+    // "replace the existing profile photo" lookup and listProfilePhotos.
+    index("media_asset_tree_person_kind_idx").on(
+      table.treeId,
+      table.personId,
+      table.kind,
+    ),
   ],
 );
 

@@ -15,6 +15,7 @@ import {
   type EdgeTypes,
 } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { useQueryState } from "nuqs";
 import { nanoid } from "nanoid";
 import {
@@ -31,13 +32,10 @@ import { SpouseEdge } from "./SpouseEdge";
 import { ParentChildEdge } from "./ParentChildEdge";
 import { FamilyTreeToolbar } from "../Toolbar/FamilyTreeToolbar";
 import { FamilyTreeLegend } from "../Legend/FamilyTreeLegend";
-import { AddPersonDialog } from "../dialogs/AddPersonDialog";
-import { AddRelationshipDialog } from "../dialogs/AddRelationshipDialog";
-import { EditCoupleDialog } from "../dialogs/EditCoupleDialog";
-import { PersonDetailSheet } from "../PersonDetailSheet";
 import { personDisplayName } from "../../utils/person";
+import { genderConfig } from "../../utils/genderConfig";
 import { X } from "lucide-react";
-import type { Person } from "../../types";
+import type { Gender, Person } from "../../types";
 
 // Defined at module scope - React Flow requires stable references
 const nodeTypes: NodeTypes = {
@@ -49,6 +47,29 @@ const edgeTypes: EdgeTypes = {
   spouse: SpouseEdge as EdgeTypes[string],
   parentChild: ParentChildEdge as EdgeTypes[string],
 };
+
+// Lazy-loaded: these render nothing until opened, so they shouldn't ship in
+// the canvas's initial bundle. `PersonDetailSheet` in particular pulls in
+// react-hook-form, zod, the date picker, and the media upload UI.
+const AddPersonDialog = dynamic(
+  () => import("../dialogs/AddPersonDialog").then((m) => m.AddPersonDialog),
+  { ssr: false },
+);
+const AddRelationshipDialog = dynamic(
+  () =>
+    import("../dialogs/AddRelationshipDialog").then(
+      (m) => m.AddRelationshipDialog,
+    ),
+  { ssr: false },
+);
+const EditCoupleDialog = dynamic(
+  () => import("../dialogs/EditCoupleDialog").then((m) => m.EditCoupleDialog),
+  { ssr: false },
+);
+const PersonDetailSheet = dynamic(
+  () => import("../PersonDetailSheet").then((m) => m.PersonDetailSheet),
+  { ssr: false },
+);
 
 // Re-fits the view whenever the active tree changes. Must render inside
 // <ReactFlow> so useReactFlow() has its provider.
@@ -310,11 +331,9 @@ export function FamilyTreeCanvas() {
         <MiniMap
           nodeColor={(node) => {
             if (node.type === "couple") return "#94a3b8";
-            const gender = (node.data as { person?: { gender?: string } })
+            const gender = (node.data as { person?: { gender?: Gender } })
               ?.person?.gender;
-            if (gender === "male") return "#93c5fd";
-            if (gender === "female") return "#f9a8d4";
-            return "#e2e8f0";
+            return gender ? genderConfig[gender].minimapColor : genderConfig.unknown.minimapColor;
           }}
           pannable
           zoomable

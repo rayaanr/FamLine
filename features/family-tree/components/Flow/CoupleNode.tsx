@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Minus, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -10,7 +11,9 @@ import { coupleStatusConfig } from "../../utils/coupleStatus";
 // opacity only - keep the box size so edge endpoints stay centered on the node.
 const hiddenHandle = "!size-2 !opacity-0";
 
-export function CoupleNode({ data }: NodeProps<CoupleFlowNode>) {
+// Memoized: React Flow re-renders every node component on internal store
+// changes (pan/select/hover), not just when this node's own `data` changes.
+function CoupleNodeImpl({ data }: NodeProps<CoupleFlowNode>) {
   const {
     couple,
     onEdit,
@@ -97,3 +100,5 @@ export function CoupleNode({ data }: NodeProps<CoupleFlowNode>) {
     </div>
   );
 }
+
+export const CoupleNode = memo(CoupleNodeImpl);

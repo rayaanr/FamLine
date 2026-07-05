@@ -92,6 +92,7 @@ export function buildGraphFromTree(
   const personCouples = new Map<string, string[]>(); // personId  → coupleIds
   const singleParentChildren = new Map<string, string[]>(); // parentId → childIds
   const childHasParents = new Set<string>();
+  const parentLinksByChild = new Map<string, (typeof parentChildren)[string][]>(); // childId → its parentChild records
 
   for (const c of Object.values(couples)) {
     for (const pid of [c.partner1Id, c.partner2Id]) {
@@ -106,12 +107,20 @@ export function buildGraphFromTree(
         pc.childId,
       ]);
       childHasParents.add(pc.childId);
+      parentLinksByChild.set(pc.childId, [
+        ...(parentLinksByChild.get(pc.childId) ?? []),
+        pc,
+      ]);
     } else if (pc.singleParentId && people[pc.singleParentId]) {
       singleParentChildren.set(pc.singleParentId, [
         ...(singleParentChildren.get(pc.singleParentId) ?? []),
         pc.childId,
       ]);
       childHasParents.add(pc.childId);
+      parentLinksByChild.set(pc.childId, [
+        ...(parentLinksByChild.get(pc.childId) ?? []),
+        pc,
+      ]);
     }
   }
 
@@ -125,8 +134,7 @@ export function buildGraphFromTree(
 
   // Walk upward from personId, adding every ancestor (person IDs) to `seen`.
   const collectAncestors = (personId: string, seen: Set<string>): void => {
-    for (const pc of Object.values(parentChildren)) {
-      if (pc.childId !== personId) continue;
+    for (const pc of parentLinksByChild.get(personId) ?? []) {
       if (pc.coupleId && couples[pc.coupleId]) {
         const c = couples[pc.coupleId];
         for (const pid of [c.partner1Id, c.partner2Id]) {
@@ -159,7 +167,6 @@ export function buildGraphFromTree(
   // not by descending the bloodline. Married-in people who carry their own
   // parents are "portals": their ancestry is hidden by default and an icon on
   // their card opens (focuses) that family. Focusing swaps the view entirely.
-  const trulyParentless = (id: string) => !childHasParents.has(id);
 
   // Mirror the placement descent order to classify bloodline vs married-in.
   const visited = new Set<string>();
@@ -184,9 +191,16 @@ export function buildGraphFromTree(
   // the spouse they married) stay hidden. F's spouse(s) are kept as leaves and
   // become the portal back to the family they married into. Returns the visible
   // member set and the spouse-leaves that should show a portal icon.
+  // Memoized per person: `hideMarriedIn` computes each portal person's family
+  // set to figure out what to hide, and the node-build loop below needs the
+  // same set again (just to count it for `hiddenFamilyCount`) — cache instead
+  // of recomputing the whole ancestor/descendant walk twice per portal.
+  const focusFamilyCache = new Map<string, { fam: Set<string>; portals: Set<string> }>();
   const computeFocusFamily = (
     F: string,
   ): { fam: Set<string>; portals: Set<string> } => {
+    const cached = focusFamilyCache.get(F);
+    if (cached) return cached;
     const fam = new Set<string>();
     collectAncestors(F, fam);
     const ancestorsOnly = new Set(fam);
@@ -222,7 +236,9 @@ export function buildGraphFromTree(
     }
     const portals = new Set<string>();
     for (const sp of spouseLeaves) if (childHasParents.has(sp)) portals.add(sp);
-    return { fam, portals };
+    const result = { fam, portals };
+    focusFamilyCache.set(F, result);
+    return result;
   };
 
   // People hidden from layout entirely, and the portal people that show an icon.
@@ -254,14 +270,14 @@ export function buildGraphFromTree(
       for (const c of Object.values(couples)) {
         if (visited.has(c.partner1Id) || visited.has(c.partner2Id)) continue;
         if (hidden.has(c.partner1Id) || hidden.has(c.partner2Id)) continue;
-        if (trulyParentless(c.partner1Id) && trulyParentless(c.partner2Id)) {
+        if (isParentless(c.partner1Id) && isParentless(c.partner2Id)) {
           descend(c.partner1Id);
           hideMarriedIn();
           return true;
         }
       }
       for (const id of Object.keys(people)) {
-        if (visited.has(id) || hidden.has(id) || !trulyParentless(id)) continue;
+        if (visited.has(id) || hidden.has(id) || !isParentless(id)) continue;
         descend(id);
         hideMarriedIn();
         return true;
@@ -650,7 +666,9 @@ export function buildGraphFromTree(
         onAddUnknown: callbacks.onAddUnknown,
         hasChildren: hasSoleKids,
         isCollapsed: personCollapsed(person.id),
-        hiddenCount: hasSoleKids
+        // Only ever displayed while collapsed (PersonNode shows it inside the
+        // `isCollapsed` branch) — skip the subtree walk otherwise.
+        hiddenCount: personCollapsed(person.id)
           ? countPersonDescendants(person.id, new Set([person.id]))
           : 0,
         onToggleCollapse: callbacks.onToggleCollapse,
@@ -678,7 +696,10 @@ export function buildGraphFromTree(
         onEdit: callbacks.onEditCouple,
         hasChildren: hasKids,
         isCollapsed: coupleCollapsed(couple.id),
-        hiddenCount: hasKids ? countCoupleDescendants(couple.id, new Set()) : 0,
+        // Only ever displayed while collapsed — skip the subtree walk otherwise.
+        hiddenCount: coupleCollapsed(couple.id)
+          ? countCoupleDescendants(couple.id, new Set())
+          : 0,
         onToggleCollapse: callbacks.onToggleCollapse,
       },
     });

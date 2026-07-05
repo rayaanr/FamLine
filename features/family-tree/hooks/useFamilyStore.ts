@@ -53,17 +53,63 @@ const graphOf = (tree: NamedFamilyTree): FamilyTree => ({
   collapsed: tree.collapsed,
 })
 
-// Debounced autosave to the database. The last write within the window wins.
-let saveTimer: ReturnType<typeof setTimeout> | null = null
+// Debounced autosave to the database, keyed per tree so editing tree B within
+// the debounce window can't cancel tree A's still-pending save (a single
+// shared timer used to do exactly that, silently dropping A's last change).
+const SAVE_DEBOUNCE_MS = 800
 
-function scheduleSave(treeId: string, data: FamilyTree) {
-  if (saveTimer) clearTimeout(saveTimer)
-  saveTimer = setTimeout(() => {
-    saveTimer = null
-    void saveTreeData(treeId, data).catch((err) => {
+interface PendingSave {
+  timer: ReturnType<typeof setTimeout>
+  data: FamilyTree
+  // Whether this batch of changes touched `people` and therefore needs
+  // `people_index` rebuilt. Sticky across coalesced schedules for the same
+  // tree: once dirty, stays dirty until the save actually fires.
+  indexDirty: boolean
+}
+
+const pendingSaves = new Map<string, PendingSave>()
+
+function fireSave(treeId: string) {
+  const pending = pendingSaves.get(treeId)
+  if (!pending) return
+  pendingSaves.delete(treeId)
+  void saveTreeData(treeId, pending.data, { skipIndex: !pending.indexDirty }).catch((err) => {
+    console.error('Failed to autosave tree', err)
+  })
+}
+
+function scheduleSave(treeId: string, data: FamilyTree, indexDirty: boolean) {
+  const existing = pendingSaves.get(treeId)
+  if (existing) clearTimeout(existing.timer)
+  const timer = setTimeout(() => fireSave(treeId), SAVE_DEBOUNCE_MS)
+  pendingSaves.set(treeId, {
+    timer,
+    data,
+    indexDirty: indexDirty || (existing?.indexDirty ?? false),
+  })
+}
+
+/**
+ * Immediately fire every pending autosave, skipping the debounce window.
+ * Call before anything that would otherwise silently drop a pending save:
+ * unmounting the tree canvas, or the page actually going away.
+ */
+export function flushPendingSaves(): void {
+  const entries = Array.from(pendingSaves.entries())
+  pendingSaves.clear()
+  for (const [treeId, pending] of entries) {
+    clearTimeout(pending.timer)
+    void saveTreeData(treeId, pending.data, { skipIndex: !pending.indexDirty }).catch((err) => {
       console.error('Failed to autosave tree', err)
     })
-  }, 800)
+  }
+}
+
+if (typeof window !== 'undefined') {
+  // Covers an actual tab close/reload; SPA-internal navigation away from the
+  // tree canvas is handled by TreeView's unmount flush instead, since it
+  // never fires pagehide.
+  window.addEventListener('pagehide', flushPendingSaves)
 }
 
 export const useFamilyStore = create<FamilyStoreState>()((set) => {
@@ -72,12 +118,13 @@ export const useFamilyStore = create<FamilyStoreState>()((set) => {
     set((s) => {
       const active = s.trees[s.activeTreeId]
       if (!active) return s
+      const patchResult = patch(active)
       const updated: NamedFamilyTree = {
         ...active,
-        ...patch(active),
+        ...patchResult,
         updatedAt: new Date().toISOString(),
       }
-      scheduleSave(s.activeTreeId, graphOf(updated))
+      scheduleSave(s.activeTreeId, graphOf(updated), 'people' in patchResult)
       return { trees: { ...s.trees, [s.activeTreeId]: updated } }
     })
 

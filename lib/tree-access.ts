@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { and, desc, eq, isNotNull, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { trees, treeMembership } from "@/db/schema";
+import { trees, treeMembership, peopleIndex } from "@/db/schema";
 import { getSession } from "@/lib/auth-server";
 import {
   canEditTree,
@@ -14,6 +14,31 @@ import type { NamedFamilyTree } from "@/features/family-tree/types";
 
 type TreeRow = typeof trees.$inferSelect;
 type Session = NonNullable<Awaited<ReturnType<typeof getSession>>>;
+
+// Columns needed for authorization/display, deliberately excluding the
+// (potentially large) `data` JSONB blob. Guards that don't need the graph
+// itself (every one except the tree page render) use this projection so the
+// hot, high-frequency autosave path never round-trips the blob just to check
+// permissions.
+const treeProjection = {
+  id: trees.id,
+  slug: trees.slug,
+  name: trees.name,
+  ownerId: trees.ownerId,
+  settings: trees.settings,
+  createdAt: trees.createdAt,
+  updatedAt: trees.updatedAt,
+} as const;
+
+type TreeProjected = {
+  id: string;
+  slug: string;
+  name: string;
+  ownerId: string;
+  settings: TreeRow["settings"];
+  createdAt: Date;
+  updatedAt: Date;
+};
 
 /** Map a DB row to the client-facing `NamedFamilyTree` (Dates → ISO strings). */
 export function toNamedTree(row: TreeRow): NamedFamilyTree {
@@ -31,7 +56,11 @@ export function toNamedTree(row: TreeRow): NamedFamilyTree {
  * super_admin → `owner` (full access); the tree's `ownerId` → `owner`; an
  * explicit membership → its role; otherwise `null` (no access).
  */
-function resolveRole(tree: TreeRow, session: Session, membershipRole?: string | null): TreeRole | null {
+function resolveRole(
+  tree: { ownerId: string },
+  session: Session,
+  membershipRole?: string | null,
+): TreeRole | null {
   if (isSuperAdmin(session.user.role)) return "owner";
   if (tree.ownerId === session.user.id) return "owner";
   return (membershipRole as TreeRole | undefined) ?? null;
@@ -71,13 +100,18 @@ export interface TreeSummary {
   isOwner: boolean;
 }
 
-// Correlated count of indexed people. Identifiers are written qualified on
-// purpose: a bare `sql` fragment does NOT auto-qualify interpolated columns, so
-// `${trees.id}` would render as a bare `"id"` that binds to people_index inside
-// the subquery (making the correlation always false → count 0).
-const peopleCountSql = sql<number>`(select count(*) from "people_index" where "people_index"."tree_id" = "trees"."id")`.mapWith(
-  Number,
-);
+// Per-tree people count, grouped once as a derived table instead of a
+// correlated subquery evaluated per tree row (the old version re-scanned
+// people_index once per tree — worst case every tree in the system for a
+// super_admin).
+const peopleCounts = db
+  .select({
+    treeId: peopleIndex.treeId,
+    count: sql<number>`count(*)`.mapWith(Number).as("count"),
+  })
+  .from(peopleIndex)
+  .groupBy(peopleIndex.treeId)
+  .as("people_counts");
 
 /**
  * Trees the current user may view. super_admin sees every tree; everyone else
@@ -96,9 +130,10 @@ export async function listAccessibleTrees(): Promise<TreeSummary[]> {
         name: trees.name,
         updatedAt: trees.updatedAt,
         ownerId: trees.ownerId,
-        peopleCount: peopleCountSql,
+        peopleCount: sql<number>`coalesce(${peopleCounts.count}, 0)`.mapWith(Number),
       })
       .from(trees)
+      .leftJoin(peopleCounts, eq(peopleCounts.treeId, trees.id))
       .orderBy(desc(trees.updatedAt));
     return rows.map((r) => ({
       id: r.id,
@@ -119,7 +154,7 @@ export async function listAccessibleTrees(): Promise<TreeSummary[]> {
       updatedAt: trees.updatedAt,
       ownerId: trees.ownerId,
       membershipRole: treeMembership.role,
-      peopleCount: peopleCountSql,
+      peopleCount: sql<number>`coalesce(${peopleCounts.count}, 0)`.mapWith(Number),
     })
     .from(trees)
     .leftJoin(
@@ -129,6 +164,7 @@ export async function listAccessibleTrees(): Promise<TreeSummary[]> {
         eq(treeMembership.userId, session.user.id),
       ),
     )
+    .leftJoin(peopleCounts, eq(peopleCounts.treeId, trees.id))
     .where(
       or(eq(trees.ownerId, session.user.id), isNotNull(treeMembership.id)),
     )
@@ -149,15 +185,25 @@ export async function listAccessibleTrees(): Promise<TreeSummary[]> {
 }
 
 // ── Route guards ─────────────────────────────────────────────────────────────
-async function loadTreeOrRedirect(idOrSlug: string) {
+// Overloaded so the `data` JSONB blob is only in scope (and only fetched) when
+// a caller explicitly asks for it via `withData: true` — every guard except
+// the tree page's render goes through the lightweight projection.
+async function loadTreeOrRedirect(
+  idOrSlug: string,
+  withData: true,
+): Promise<{ tree: TreeRow; role: TreeRole | null; session: Session }>;
+async function loadTreeOrRedirect(
+  idOrSlug: string,
+  withData?: false,
+): Promise<{ tree: TreeProjected; role: TreeRole | null; session: Session }>;
+async function loadTreeOrRedirect(idOrSlug: string, withData = false) {
   const session = await getSession();
   if (!session) redirect("/login");
   // The URL param may be either the canonical id or the human-readable slug.
-  const [tree] = await db
-    .select()
-    .from(trees)
-    .where(or(eq(trees.id, idOrSlug), eq(trees.slug, idOrSlug)))
-    .limit(1);
+  const whereClause = or(eq(trees.id, idOrSlug), eq(trees.slug, idOrSlug));
+  const [tree] = withData
+    ? await db.select().from(trees).where(whereClause).limit(1)
+    : await db.select(treeProjection).from(trees).where(whereClause).limit(1);
   if (!tree) redirect("/tree");
 
   let membershipRole: string | null = null;
@@ -178,9 +224,20 @@ async function loadTreeOrRedirect(idOrSlug: string) {
   return { tree, role, session };
 }
 
-/** Gate on view access (any tree role). Returns the full tree row + role. */
+/** Gate on view access (any tree role). Returns the tree metadata (no `data`) + role. */
 export async function requireTreeView(treeId: string) {
   const { tree, role, session } = await loadTreeOrRedirect(treeId);
+  if (!canViewTree(role)) redirect("/tree");
+  return { tree, role: role as TreeRole, session };
+}
+
+/**
+ * Gate on view access, fetching the full row (including the `data` graph).
+ * Only the tree page's Server Component needs this — everything else should
+ * use `requireTreeView`.
+ */
+export async function requireTreeViewWithData(treeId: string) {
+  const { tree, role, session } = await loadTreeOrRedirect(treeId, true);
   if (!canViewTree(role)) redirect("/tree");
   return { tree, role: role as TreeRole, session };
 }

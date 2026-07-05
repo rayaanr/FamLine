@@ -18,6 +18,7 @@ import {
   profileKey,
   documentKey,
   extOf,
+  PROFILE_PRESIGN_TTL,
 } from "@/lib/r2";
 import {
   type DocType,
@@ -188,7 +189,11 @@ async function toView(row: AssetRow): Promise<MediaAssetView> {
     contentType: row.contentType,
     size: row.size,
     createdAt: row.createdAt.toISOString(),
-    url: await presignDownload(row.key),
+    url: await presignDownload(
+      row.key,
+      undefined,
+      row.kind === "profile" ? PROFILE_PRESIGN_TTL : undefined,
+    ),
   };
 }
 
@@ -231,7 +236,10 @@ export async function listProfilePhotos(
   const entries = await Promise.all(
     rows
       .filter((r): r is { personId: string; key: string } => r.personId !== null)
-      .map(async (r) => [r.personId, await presignDownload(r.key)] as const),
+      .map(
+        async (r) =>
+          [r.personId, await presignDownload(r.key, undefined, PROFILE_PRESIGN_TTL)] as const,
+      ),
   );
   return Object.fromEntries(entries);
 }

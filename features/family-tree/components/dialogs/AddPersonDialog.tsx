@@ -24,7 +24,8 @@ import {
 } from "@/components/ui/select";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useFamilyStore } from "../../hooks/useFamilyStore";
-import type { Person } from "../../types";
+import { genderConfig } from "../../utils/genderConfig";
+import type { Gender, Person } from "../../types";
 
 const schema = z.object({
   // Names are optional: a nameless person is a placeholder ("Unknown") you can
@@ -39,13 +40,6 @@ const schema = z.object({
 });
 
 type FormData = z.infer<typeof schema>;
-
-const genderLabels: Record<string, string> = {
-  male: "Male",
-  female: "Female",
-  other: "Other",
-  unknown: "Unknown",
-};
 
 interface AddPersonDialogProps {
   open: boolean;
@@ -165,16 +159,17 @@ export function AddPersonDialog({
                 <Select
                   value={field.value}
                   onValueChange={field.onChange}
-                  itemToStringLabel={(v) => genderLabels[v as string] ?? v}
+                  itemToStringLabel={(v) => genderConfig[v as Gender]?.label ?? v}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="male">Male</SelectItem>
-                    <SelectItem value="female">Female</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                    <SelectItem value="unknown">Unknown</SelectItem>
+                    {(Object.keys(genderConfig) as Gender[]).map((g) => (
+                      <SelectItem key={g} value={g}>
+                        {genderConfig[g].label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               )}

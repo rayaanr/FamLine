@@ -1,0 +1,1 @@
+CREATE INDEX "media_asset_tree_person_kind_idx" ON "media_asset" USING btree ("tree_id","person_id","kind");
