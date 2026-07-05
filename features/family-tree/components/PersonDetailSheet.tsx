@@ -111,7 +111,21 @@ function DetailsSection({
         <DetailRow
           icon={Cake}
           label="Born"
-          value={birth ?? <span className="text-muted-foreground">Unknown</span>}
+          value={
+            birth || person.birthPlace ? (
+              <>
+                {birth ?? <span className="text-muted-foreground">Unknown date</span>}
+                {person.birthPlace && (
+                  <span className="text-muted-foreground">
+                    {birth ? ' · ' : ''}
+                    {person.birthPlace}
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="text-muted-foreground">Unknown</span>
+            )
+          }
         />
         {(person.isDeceased || death) && (
           <DetailRow

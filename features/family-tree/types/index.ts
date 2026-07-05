@@ -7,6 +7,7 @@ export interface Person {
   firstName: string
   lastName: string
   birthDate?: string
+  birthPlace?: string
   deathDate?: string
   isDeceased: boolean
   gender: Gender

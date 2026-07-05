@@ -34,6 +34,7 @@ const schema = z.object({
   lastName: z.string().optional(),
   gender: z.enum(["male", "female", "other", "unknown"]),
   birthDate: z.string().optional(),
+  birthPlace: z.string().optional(),
   deathDate: z.string().optional(),
   isDeceased: z.boolean(),
   notes: z.string().optional(),
@@ -62,6 +63,7 @@ export function AddPersonDialog({
       lastName: "",
       gender: "unknown",
       birthDate: "",
+      birthPlace: "",
       deathDate: "",
       isDeceased: false,
       notes: "",
@@ -77,6 +79,7 @@ export function AddPersonDialog({
         lastName: editPerson.lastName,
         gender: editPerson.gender,
         birthDate: editPerson.birthDate ?? "",
+        birthPlace: editPerson.birthPlace ?? "",
         deathDate: editPerson.deathDate ?? "",
         isDeceased: editPerson.isDeceased,
         notes: editPerson.notes ?? "",
@@ -87,6 +90,7 @@ export function AddPersonDialog({
         lastName: "",
         gender: "unknown",
         birthDate: "",
+        birthPlace: "",
         deathDate: "",
         isDeceased: false,
         notes: "",
@@ -107,6 +111,7 @@ export function AddPersonDialog({
       isDeceased: data.isDeceased,
       isPlaceholder,
       birthDate: data.birthDate || undefined,
+      birthPlace: data.birthPlace?.trim() || undefined,
       deathDate: data.deathDate || undefined,
       notes: data.notes || undefined,
     };
@@ -213,6 +218,20 @@ export function AddPersonDialog({
                 )}
               />
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="birthPlace">
+              Birth Place{" "}
+              <span className="text-muted-foreground font-normal">
+                (optional)
+              </span>
+            </Label>
+            <Input
+              id="birthPlace"
+              placeholder="e.g. Colombo, Sri Lanka"
+              {...register("birthPlace")}
+            />
           </div>
 
           <div className="flex items-center gap-2">
