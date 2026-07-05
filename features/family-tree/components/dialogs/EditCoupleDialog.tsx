@@ -12,6 +12,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -27,6 +28,7 @@ const schema = z.object({
   status: z.enum(['married', 'divorced', 'separated', 'partnered']),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
+  marriagePlace: z.string().optional(),
 })
 
 type FormData = z.infer<typeof schema>
@@ -42,9 +44,9 @@ export function EditCoupleDialog({ coupleId, onClose }: EditCoupleDialogProps) {
 
   const couple = coupleId ? couples[coupleId] : null
 
-  const { handleSubmit, control, watch, reset } = useForm<FormData>({
+  const { handleSubmit, control, watch, reset, register } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { status: 'married', startDate: '', endDate: '' },
+    defaultValues: { status: 'married', startDate: '', endDate: '', marriagePlace: '' },
   })
 
   useEffect(() => {
@@ -53,6 +55,7 @@ export function EditCoupleDialog({ coupleId, onClose }: EditCoupleDialogProps) {
         status: couple.status,
         startDate: couple.startDate ?? '',
         endDate: couple.endDate ?? '',
+        marriagePlace: couple.marriagePlace ?? '',
       })
     }
   }, [couple, reset])
@@ -65,6 +68,7 @@ export function EditCoupleDialog({ coupleId, onClose }: EditCoupleDialogProps) {
       status: data.status,
       startDate: data.startDate || undefined,
       endDate: data.status === 'divorced' ? (data.endDate || undefined) : undefined,
+      marriagePlace: data.marriagePlace?.trim() || undefined,
     })
     onClose()
   }
@@ -135,6 +139,11 @@ export function EditCoupleDialog({ coupleId, onClose }: EditCoupleDialogProps) {
                 />
               </div>
             )}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Marriage Place</Label>
+            <Input placeholder="e.g. Colombo, Sri Lanka" {...register('marriagePlace')} />
           </div>
 
           <DialogFooter>

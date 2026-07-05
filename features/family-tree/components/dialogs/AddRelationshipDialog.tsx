@@ -134,6 +134,7 @@ const coupleSchema = z
     status: z.enum(['married', 'divorced', 'separated', 'partnered']),
     startDate: z.string().optional(),
     endDate: z.string().optional(),
+    marriagePlace: z.string().optional(),
   })
   .refine(
     (d) => d.partner2Mode === 'new' || !!d.partner2Id,
@@ -211,6 +212,7 @@ function CoupleForm({
       status: 'married',
       startDate: '',
       endDate: '',
+      marriagePlace: '',
     },
   })
 
@@ -224,6 +226,7 @@ function CoupleForm({
       status: 'married',
       startDate: '',
       endDate: '',
+      marriagePlace: '',
     })
   }, [preselectedPartnerId, reset])
 
@@ -255,6 +258,7 @@ function CoupleForm({
       status: data.status,
       startDate: data.startDate || undefined,
       endDate: data.endDate || undefined,
+      marriagePlace: data.marriagePlace?.trim() || undefined,
     })
     onClose()
   }
@@ -394,6 +398,11 @@ function CoupleForm({
             />
           </div>
         )}
+      </div>
+
+      <div className="space-y-1.5">
+        <Label>Marriage Place</Label>
+        <Input placeholder="e.g. Colombo, Sri Lanka" {...register('marriagePlace')} />
       </div>
 
       <DialogFooter>

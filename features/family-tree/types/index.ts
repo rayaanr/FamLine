@@ -23,6 +23,7 @@ export interface Couple {
   status: CoupleStatus
   startDate?: string
   endDate?: string
+  marriagePlace?: string
 }
 
 export interface ParentChild {
