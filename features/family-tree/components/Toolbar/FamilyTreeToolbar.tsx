@@ -33,7 +33,7 @@ export function FamilyTreeToolbar({ onAddPerson, canEdit }: FamilyTreeToolbarPro
 
   return (
     <>
-    <div className="flex items-center gap-2 rounded-xl border border-border bg-background/90 p-2 shadow-sm backdrop-blur-sm">
+    <div className="flex items-center gap-1 rounded-xl border border-border bg-background/90 p-1.5 shadow-sm backdrop-blur-sm sm:gap-2 sm:p-2">
       <Button
         variant="ghost"
         size="sm"
@@ -43,7 +43,7 @@ export function FamilyTreeToolbar({ onAddPerson, canEdit }: FamilyTreeToolbarPro
         render={<Link href="/tree" />}
       >
         <ArrowLeft className="size-3.5" />
-        All trees
+        <span className="hidden sm:inline">All trees</span>
       </Button>
 
       {canEdit && (
@@ -52,7 +52,7 @@ export function FamilyTreeToolbar({ onAddPerson, canEdit }: FamilyTreeToolbarPro
 
           <Button size="sm" onClick={onAddPerson} className="gap-1.5">
             <UserPlus className="size-3.5" />
-            Add Person
+            <span className="hidden sm:inline">Add Person</span>
           </Button>
 
           {collapsedCount > 0 && (
@@ -64,7 +64,7 @@ export function FamilyTreeToolbar({ onAddPerson, canEdit }: FamilyTreeToolbarPro
               className="gap-1.5 text-muted-foreground"
             >
               <Expand className="size-3.5" />
-              Expand all
+              <span className="hidden sm:inline">Expand all</span>
             </Button>
           )}
         </>
@@ -90,14 +90,16 @@ export function FamilyTreeToolbar({ onAddPerson, canEdit }: FamilyTreeToolbarPro
           className="gap-1.5 text-amber-600 hover:text-amber-700 dark:text-amber-500"
         >
           <HelpCircle className="size-3.5" />
-          {placeholders.length} need{placeholders.length === 1 ? 's' : ''} details
+          <span className="hidden sm:inline">
+            {placeholders.length} need{placeholders.length === 1 ? 's' : ''} details
+          </span>
         </Button>
       )}
 
       {personCount > 0 && (
         <Badge
           variant="secondary"
-          className="gap-1"
+          className="hidden gap-1 sm:flex"
           title={`${personCount} ${personCount === 1 ? 'person' : 'people'}`}
         >
           <Users className="size-3.5" />

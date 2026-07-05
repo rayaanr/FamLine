@@ -1,12 +1,12 @@
 "use client";
 
-import { ChevronDown, Info } from "lucide-react";
+import { HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { coupleStatusConfig } from "../../utils/coupleStatus";
 import { genderConfig } from "../../utils/genderConfig";
 import type { CoupleStatus, Gender } from "../../types";
@@ -50,83 +50,77 @@ function Row({ swatch, label }: { swatch: React.ReactNode; label: string }) {
 
 export function FamilyTreeLegend() {
   return (
-    <Collapsible
-      defaultOpen
-      className="w-56 overflow-hidden rounded-xl border border-border bg-background/90 shadow-sm backdrop-blur-sm"
-    >
-      <CollapsibleTrigger className="group flex w-full items-center justify-between gap-2 px-3 py-2 text-xs font-semibold text-foreground">
-        <span className="flex items-center gap-1.5">
-          <Info className="size-3.5 text-muted-foreground" />
-          Legend
-        </span>
-        <ChevronDown className="size-4 text-muted-foreground transition-transform group-data-panel-open:rotate-180" />
-      </CollapsibleTrigger>
+    <Popover>
+      <PopoverTrigger
+        className="flex size-8 items-center justify-center rounded-full border border-border bg-background/90 text-muted-foreground shadow-sm backdrop-blur-sm transition-colors hover:text-foreground"
+        aria-label="Show legend"
+      >
+        <HelpCircle className="size-4" />
+      </PopoverTrigger>
 
-      <CollapsibleContent>
-        <div className="space-y-3 px-3 pb-3">
-          <Section title="Person · gender">
-            {genderOrder.map((gender) => {
-              const cfg = genderConfig[gender];
-              return (
-                <Row
-                  key={gender}
-                  label={cfg.label}
-                  swatch={<cfg.icon className={cn("size-3.5", cfg.iconColor)} />}
-                />
-              );
-            })}
-          </Section>
-
-          <Section title="Couple · status">
-            {statusOrder.map((status) => {
-              const cfg = coupleStatusConfig[status];
-              return (
-                <Row
-                  key={status}
-                  label={cfg.label}
-                  swatch={
-                    <span className={cn("flex size-5 items-center justify-center rounded-full border", cfg.bg)}>
-                      <cfg.icon
-                        className={cn("size-3", cfg.color)}
-                        fill="none"
-                        strokeWidth={1.75}
-                      />
-                    </span>
-                  }
-                />
-              );
-            })}
-          </Section>
-
-          <Section title="Parentage">
-            {lineItems.map((l) => (
+      <PopoverContent align="end" className="w-64 space-y-3">
+        <Section title="Person · gender">
+          {genderOrder.map((gender) => {
+            const cfg = genderConfig[gender];
+            return (
               <Row
-                key={l.label}
-                label={l.label}
+                key={gender}
+                label={cfg.label}
+                swatch={<cfg.icon className={cn("size-3.5", cfg.iconColor)} />}
+              />
+            );
+          })}
+        </Section>
+
+        <Section title="Couple · status">
+          {statusOrder.map((status) => {
+            const cfg = coupleStatusConfig[status];
+            return (
+              <Row
+                key={status}
+                label={cfg.label}
                 swatch={
-                  <svg width="28" height="8" aria-hidden>
-                    <line
-                      x1="0"
-                      y1="4"
-                      x2="28"
-                      y2="4"
-                      stroke={l.stroke}
-                      strokeWidth="2"
-                      strokeDasharray={l.dash}
+                  <span className={cn("flex size-5 items-center justify-center rounded-full border", cfg.bg)}>
+                    <cfg.icon
+                      className={cn("size-3", cfg.color)}
+                      fill="none"
+                      strokeWidth={1.75}
                     />
-                  </svg>
+                  </span>
                 }
               />
-            ))}
-          </Section>
-          <ul className="list-disc border-t border-border pt-2 pl-2 space-y-[0.5] text-[10px] leading-snug text-muted-foreground">
-            <li>Faded cards mark a deceased person</li>
-            <li>Dashed cards are unknown placeholders that still need details</li>
-            <li>Click a card to view details</li>
-            <li>Use <span className="font-medium text-foreground">+</span> to add a relative (known or unknown)</li>
-          </ul>
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
+            );
+          })}
+        </Section>
+
+        <Section title="Parentage">
+          {lineItems.map((l) => (
+            <Row
+              key={l.label}
+              label={l.label}
+              swatch={
+                <svg width="28" height="8" aria-hidden>
+                  <line
+                    x1="0"
+                    y1="4"
+                    x2="28"
+                    y2="4"
+                    stroke={l.stroke}
+                    strokeWidth="2"
+                    strokeDasharray={l.dash}
+                  />
+                </svg>
+              }
+            />
+          ))}
+        </Section>
+        <ul className="list-disc border-t border-border pt-2 pl-2 space-y-[0.5] text-[10px] leading-snug text-muted-foreground">
+          <li>Faded cards mark a deceased person</li>
+          <li>Dashed cards are unknown placeholders that still need details</li>
+          <li>Click a card to view details</li>
+          <li>Use <span className="font-medium text-foreground">+</span> to add a relative (known or unknown)</li>
+        </ul>
+      </PopoverContent>
+    </Popover>
   );
 }
