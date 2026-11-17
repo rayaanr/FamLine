@@ -49,6 +49,9 @@ export interface NamedFamilyTree extends FamilyTree {
   name: string
   createdAt: string
   updatedAt: string
+  // Optimistic-concurrency version from the DB. The client sends this as
+  // `baseVersion` when flushing ops; a mismatch means someone else saved first.
+  version: number
 }
 
 // ── Media (profile photos, documents, gallery) ───────────────────────────────

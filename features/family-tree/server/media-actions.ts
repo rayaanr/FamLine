@@ -162,20 +162,37 @@ export async function confirmUpload(
     }
   }
 
-  await db.insert(mediaAsset).values({
-    id: spec.assetId,
-    treeId: spec.treeId,
-    personId: spec.personId ?? null,
-    kind: spec.kind,
-    docType: spec.kind === "document" ? (spec.docType ?? "other") : null,
-    key,
-    fileName: spec.fileName,
-    contentType: meta.contentType,
-    size: meta.contentLength,
-    uploadedBy: session.user.id,
-  });
+  try {
+    await db.insert(mediaAsset).values({
+      id: spec.assetId,
+      treeId: spec.treeId,
+      personId: spec.personId ?? null,
+      kind: spec.kind,
+      docType: spec.kind === "document" ? (spec.docType ?? "other") : null,
+      key,
+      fileName: spec.fileName,
+      contentType: meta.contentType,
+      size: meta.contentLength,
+      uploadedBy: session.user.id,
+    });
+  } catch (e) {
+    // The (tree_id, person_id) FK fails if the member was deleted between the
+    // upload request and this confirm.
+    if (isForeignKeyViolation(e)) return { error: "That member no longer exists." };
+    throw e;
+  }
 
   return {};
+}
+
+/** True for a Postgres foreign-key violation (SQLSTATE 23503). */
+function isForeignKeyViolation(e: unknown): boolean {
+  return (
+    typeof e === "object" &&
+    e !== null &&
+    "code" in e &&
+    (e as { code?: string }).code === "23503"
+  );
 }
 
 type AssetRow = typeof mediaAsset.$inferSelect;

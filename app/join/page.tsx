@@ -2,7 +2,8 @@ import { redirect } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import { eq, and, isNull, gt } from 'drizzle-orm'
+import { createHash } from 'node:crypto'
+import { eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { treeInvitation, trees } from '@/db/schema'
 import { getSession } from '@/lib/auth-server'
@@ -43,7 +44,12 @@ export default async function JoinPage({
     })
     .from(treeInvitation)
     .innerJoin(trees, eq(trees.id, treeInvitation.treeId))
-    .where(eq(treeInvitation.token, token))
+    .where(
+      eq(
+        treeInvitation.tokenHash,
+        createHash('sha256').update(token).digest('hex'),
+      ),
+    )
     .limit(1)
 
   const errorMessage = !inv

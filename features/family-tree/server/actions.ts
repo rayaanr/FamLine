@@ -1,50 +1,100 @@
 "use server";
 
 import { nanoid } from "nanoid";
+import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import { and, eq, isNull, gt, desc, or, like } from "drizzle-orm";
+import { and, eq, isNull, isNotNull, gt, desc, or, like, max, inArray, sql } from "drizzle-orm";
 import { db, isNeonHttp } from "@/db";
-import { trees, treeMembership, peopleIndex, user, treeInvitation } from "@/db/schema";
+import {
+  trees,
+  treeMembership,
+  treePerson,
+  treeCouple,
+  treeParentChild,
+  treeRevision,
+  mediaAsset,
+  user,
+  treeInvitation,
+} from "@/db/schema";
 import { requireAuth } from "@/lib/auth-server";
 import { slugify } from "@/features/family-tree/utils/slug";
 import {
   requireTreeEdit,
   requireTreeOwner,
   requireTreeView,
+  getTreeGraphById,
 } from "@/lib/tree-access";
 import { TREE_ROLES, isSuperAdmin, type TreeRole } from "@/lib/permissions";
-import type { FamilyTree } from "@/features/family-tree/types";
-import { personDisplayName } from "@/features/family-tree/utils/person";
+import type {
+  FamilyTree,
+  NamedFamilyTree,
+} from "@/features/family-tree/types";
 import { buildMockFamily } from "@/features/family-tree/utils/mockData";
-import { deleteByPrefix } from "@/lib/r2";
+import { deleteByPrefix, deleteObject } from "@/lib/r2";
 import { sendInviteEmail } from "@/lib/email";
+import {
+  parseOps,
+  planStatements,
+  mediaCleanupStmts,
+  revisionStmt,
+  runAtomic,
+  rowCountOf,
+} from "./ops";
 
-const emptyTree = (): FamilyTree => ({
-  people: {},
-  couples: {},
-  parentChildren: {},
-  collapsed: [],
-});
-
-/** Row shape for `people_index`, derived from a tree's JSONB graph. */
-function buildPeopleIndexRows(treeId: string, data: FamilyTree) {
-  return Object.values(data.people ?? {}).map((p) => {
-    const year = p.birthDate ? Number.parseInt(p.birthDate.slice(0, 4), 10) : NaN;
-    return {
-      id: p.id,
-      treeId,
-      personName: personDisplayName(p),
-      birthYear: Number.isFinite(year) ? year : null,
-      gender: p.gender ?? null,
-    };
-  });
+/** SHA-256 (hex) of an invite token. Only the hash is stored; the plaintext lives only in the email link. */
+function hashToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
 }
 
-/** Rebuild the searchable people index for a tree from its JSONB graph. */
-async function rebuildPeopleIndex(treeId: string, data: FamilyTree) {
-  await db.delete(peopleIndex).where(eq(peopleIndex.treeId, treeId));
-  const rows = buildPeopleIndexRows(treeId, data);
-  if (rows.length > 0) await db.insert(peopleIndex).values(rows);
+/** Insert a fresh tree's graph rows (people → couples → parent-child, FK order). */
+async function insertGraphRows(treeId: string, graph: FamilyTree): Promise<void> {
+  const people = Object.values(graph.people);
+  const couples = Object.values(graph.couples);
+  const pcs = Object.values(graph.parentChildren);
+
+  if (people.length > 0) {
+    await db.insert(treePerson).values(
+      people.map((p) => ({
+        id: p.id,
+        treeId,
+        firstName: p.firstName,
+        lastName: p.lastName,
+        birthDate: p.birthDate ?? null,
+        birthPlace: p.birthPlace ?? null,
+        deathDate: p.deathDate ?? null,
+        isDeceased: p.isDeceased,
+        gender: p.gender,
+        notes: p.notes ?? null,
+        isPlaceholder: p.isPlaceholder ?? false,
+      })),
+    );
+  }
+  if (couples.length > 0) {
+    await db.insert(treeCouple).values(
+      couples.map((c) => ({
+        id: c.id,
+        treeId,
+        partner1Id: c.partner1Id,
+        partner2Id: c.partner2Id,
+        status: c.status,
+        startDate: c.startDate ?? null,
+        endDate: c.endDate ?? null,
+        marriagePlace: c.marriagePlace ?? null,
+      })),
+    );
+  }
+  if (pcs.length > 0) {
+    await db.insert(treeParentChild).values(
+      pcs.map((pc) => ({
+        id: pc.id,
+        treeId,
+        childId: pc.childId,
+        coupleId: pc.coupleId ?? null,
+        singleParentId: pc.singleParentId ?? null,
+        type: pc.type,
+      })),
+    );
+  }
 }
 
 /**
@@ -72,6 +122,17 @@ function isSlugUniqueViolation(e: unknown): boolean {
     "code" in e &&
     (e as { code?: string }).code === "23505" &&
     (e as { constraint?: string }).constraint === "trees_slug_unique"
+  );
+}
+
+/** True for a 23505 on the pending-invite partial unique index. */
+function isPendingInviteUniqueViolation(e: unknown): boolean {
+  return (
+    typeof e === "object" &&
+    e !== null &&
+    "code" in e &&
+    (e as { code?: string }).code === "23505" &&
+    (e as { constraint?: string }).constraint === "tree_invitation_pending_email_uq"
   );
 }
 
@@ -107,7 +168,7 @@ export async function createTree(name?: string): Promise<string> {
     id: nanoid(),
     name: trimmed,
     ownerId: session.user.id,
-    data: emptyTree(),
+    version: 1,
   });
   revalidatePath("/tree");
   return slug;
@@ -123,14 +184,15 @@ export async function createDemoTree(): Promise<string> {
     throw new Error("Not authorized");
   }
   const id = nanoid();
-  const data: FamilyTree = { ...buildMockFamily(), collapsed: [] };
+  const graph: FamilyTree = { ...buildMockFamily(), collapsed: [] };
   const slug = await insertTreeWithUniqueSlug({
     id,
     name: "Demo Family",
     ownerId: session.user.id,
-    data,
+    version: 1,
+    collapsed: graph.collapsed,
   });
-  await rebuildPeopleIndex(id, data);
+  await insertGraphRows(id, graph);
   revalidatePath("/tree");
   return slug;
 }
@@ -151,57 +213,263 @@ export async function deleteTree(id: string): Promise<void> {
   // R2 objects are not covered by FK cascade — purge them first so we don't
   // leave orphaned files if the DB delete succeeds but R2 is unreachable later.
   await deleteByPrefix(`trees/${id}/`);
-  // Memberships, media_asset, and people_index rows cascade via FK on delete.
+  // Memberships, media_asset, revisions, and all graph rows cascade via FK.
   await db.delete(trees).where(eq(trees.id, id));
   revalidatePath("/tree");
 }
 
+// ── Graph persistence (op-log with optimistic concurrency) ───────────────────
+
+/** Result of an `applyTreeOps` flush. */
+export type ApplyResult =
+  | { version: number }
+  | { conflict: true; version: number; graph: NamedFamilyTree }
+  | { error: string };
+
+// A revision snapshot is taken at most this often per tree, and only the newest
+// N are kept. Cheap safety net + owner-restore source without ballooning storage.
+const REVISION_THROTTLE_MS = 30 * 60 * 1000;
+const REVISION_KEEP = 20;
+
+const graphOf = (t: NamedFamilyTree): FamilyTree => ({
+  people: t.people,
+  couples: t.couples,
+  parentChildren: t.parentChildren,
+  collapsed: t.collapsed,
+});
+
+/** Best-effort R2 purge of specific keys (fire-and-forget on the success path). */
+async function purgeKeys(keys: string[]): Promise<void> {
+  await Promise.allSettled(keys.map((k) => deleteObject(k)));
+}
+
+/** Best-effort retention prune: keep only the newest `REVISION_KEEP` revisions. */
+async function pruneRevisions(treeId: string): Promise<void> {
+  await db.execute(sql`
+    delete from tree_revision
+    where tree_id = ${treeId}
+      and id not in (
+        select id from tree_revision
+        where tree_id = ${treeId}
+        order by created_at desc
+        limit ${REVISION_KEEP}
+      )
+  `);
+}
+
 /**
- * Persist the full tree graph (editor+) and rebuild the people index.
+ * Apply a batch of graph mutations atomically under optimistic concurrency.
  *
- * The graph update and index rebuild commit atomically (no window where
- * `people_index` is empty/stale relative to `data`): neon-http has no real
- * transactions over HTTP, so it uses Neon's `batch` RPC (one round-trip,
- * atomic); local dev's node-postgres pool uses a real `transaction`. Pass
- * `skipIndex: true` when the mutation didn't touch `people` (e.g. a
- * collapse/expand toggle) to avoid rebuilding an index that hasn't changed.
+ * `baseVersion` is the tree version the client last saw. All versioned ops are
+ * gated on it and run before a single `version + 1` bump; if the tree has moved
+ * on, every op no-ops and the bump matches 0 rows, which we report as a conflict
+ * (with the latest graph so the client can reload). `set_collapsed` is applied
+ * unconditionally (canvas state, last-write-wins, no version bump).
  */
-export async function saveTreeData(
-  id: string,
-  data: FamilyTree,
-  opts?: { skipIndex?: boolean },
-): Promise<void> {
-  await requireTreeEdit(id);
-  const rows = opts?.skipIndex ? null : buildPeopleIndexRows(id, data);
+export async function applyTreeOps(
+  treeId: string,
+  rawOps: unknown,
+  baseVersion: number,
+): Promise<ApplyResult> {
+  const { session } = await requireTreeEdit(treeId);
 
-  if (!isNeonHttp(db)) {
-    // Local dev (node-postgres): a real transaction.
-    await db.transaction(async (tx) => {
-      await tx.update(trees).set({ data, updatedAt: new Date() }).where(eq(trees.id, id));
-      if (rows) {
-        await tx.delete(peopleIndex).where(eq(peopleIndex.treeId, id));
-        if (rows.length > 0) await tx.insert(peopleIndex).values(rows);
+  const parsed = parseOps(rawOps);
+  if ("error" in parsed) return { error: parsed.error };
+  const ops = parsed.ops;
+
+  const { preBump, bump, postBump, versionedCount } = planStatements(
+    treeId,
+    baseVersion,
+    ops,
+  );
+
+  // Media rows/objects for people being removed this flush: read their keys now
+  // (before the rows go), delete the rows inside the atomic unit, purge R2 after.
+  const personDeletes = ops
+    .filter((o): o is Extract<typeof o, { t: "delete_person" }> => o.t === "delete_person")
+    .map((o) => o.id);
+  const clearAll = ops.some((o) => o.t === "clear_tree");
+  let keysToPurge: string[] = [];
+  if (clearAll || personDeletes.length > 0) {
+    const rows = await db
+      .select({ key: mediaAsset.key })
+      .from(mediaAsset)
+      .where(
+        clearAll
+          ? and(eq(mediaAsset.treeId, treeId), isNotNull(mediaAsset.personId))
+          : and(
+              eq(mediaAsset.treeId, treeId),
+              inArray(mediaAsset.personId, personDeletes),
+            ),
+      );
+    keysToPurge = rows.map((r) => r.key);
+  }
+  const mediaCleanup = mediaCleanupStmts(treeId, baseVersion, personDeletes, clearAll);
+
+  // Throttled pre-apply revision snapshot (only when we're changing the graph).
+  let revision = null as ReturnType<typeof revisionStmt> | null;
+  if (versionedCount > 0) {
+    const [latest] = await db
+      .select({ newest: max(treeRevision.createdAt) })
+      .from(treeRevision)
+      .where(eq(treeRevision.treeId, treeId));
+    const newest = latest?.newest ?? null;
+    const stale = !newest || Date.now() - newest.getTime() > REVISION_THROTTLE_MS;
+    if (stale) {
+      const current = await getTreeGraphById(treeId);
+      if (current) {
+        revision = revisionStmt(
+          treeId,
+          baseVersion,
+          nanoid(),
+          current.version,
+          graphOf(current),
+          "auto",
+          session.user.id,
+        );
       }
+    }
+  }
+
+  // Ordered atomic plan: [revision?, media-cleanup…, ops…, bump?, set_collapsed?].
+  const pre = [
+    ...(revision ? [revision] : []),
+    ...mediaCleanup,
+    ...preBump,
+  ];
+  const plan = [...pre, ...(bump ? [bump] : []), ...postBump];
+  const bumpIndex = bump ? pre.length : -1;
+
+  if (plan.length === 0) return { version: baseVersion };
+
+  let results;
+  try {
+    results = await runAtomic(plan);
+  } catch (e) {
+    console.error("applyTreeOps failed", e);
+    return { error: "Couldn't save your changes." };
+  }
+
+  // Conflict: the bump matched no row → baseVersion was stale, everything no-op'd.
+  if (bumpIndex >= 0 && rowCountOf(results[bumpIndex]) === 0) {
+    const graph = await getTreeGraphById(treeId);
+    if (!graph) return { error: "This tree no longer exists." };
+    return { conflict: true, version: graph.version, graph };
+  }
+
+  if (keysToPurge.length > 0) void purgeKeys(keysToPurge);
+  if (revision) void pruneRevisions(treeId);
+
+  return { version: versionedCount > 0 ? baseVersion + 1 : baseVersion };
+}
+
+/** Re-fetch the authoritative graph (used by the client after a conflict). Requires view access. */
+export async function refetchTreeGraph(treeId: string): Promise<NamedFamilyTree | null> {
+  await requireTreeView(treeId);
+  return getTreeGraphById(treeId);
+}
+
+/**
+ * Restore a tree to a prior revision. Owner only. Snapshots the current state as
+ * a `pre_restore` revision, then atomically replaces all graph rows with the
+ * revision's contents and bumps the version (so any open editor conflicts and
+ * reloads on its next flush).
+ */
+export async function restoreTreeRevision(
+  revisionId: string,
+): Promise<{ error?: string; version?: number }> {
+  const [rev] = await db
+    .select()
+    .from(treeRevision)
+    .where(eq(treeRevision.id, revisionId))
+    .limit(1);
+  if (!rev) return { error: "Revision not found." };
+
+  const { session } = await requireTreeOwner(rev.treeId);
+  const treeId = rev.treeId;
+  const snapshot = rev.data;
+
+  const current = await getTreeGraphById(treeId);
+  if (!current) return { error: "Tree not found." };
+
+  const people = Object.values(snapshot.people ?? {});
+  const couples = Object.values(snapshot.couples ?? {});
+  const pcs = Object.values(snapshot.parentChildren ?? {});
+
+  const personRows = people.map((p) => ({
+    id: p.id,
+    treeId,
+    firstName: p.firstName,
+    lastName: p.lastName,
+    birthDate: p.birthDate ?? null,
+    birthPlace: p.birthPlace ?? null,
+    deathDate: p.deathDate ?? null,
+    isDeceased: p.isDeceased,
+    gender: p.gender,
+    notes: p.notes ?? null,
+    isPlaceholder: p.isPlaceholder ?? false,
+  }));
+  const coupleRows = couples.map((c) => ({
+    id: c.id,
+    treeId,
+    partner1Id: c.partner1Id,
+    partner2Id: c.partner2Id,
+    status: c.status,
+    startDate: c.startDate ?? null,
+    endDate: c.endDate ?? null,
+    marriagePlace: c.marriagePlace ?? null,
+  }));
+  const pcRows = pcs.map((pc) => ({
+    id: pc.id,
+    treeId,
+    childId: pc.childId,
+    coupleId: pc.coupleId ?? null,
+    singleParentId: pc.singleParentId ?? null,
+    type: pc.type,
+  }));
+
+  // Ordered statements (delete children → parents, then insert parents →
+  // children) built against whichever executor runs them. Queries must bind to
+  // the transaction on the local driver, so we build per-executor.
+  type Exec = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+  const build = (exec: Exec) =>
+    [
+      exec.insert(treeRevision).values({
+        id: nanoid(),
+        treeId,
+        version: current.version,
+        data: graphOf(current),
+        reason: "pre_restore" as const,
+        createdBy: session.user.id,
+      }),
+      exec.delete(treeParentChild).where(eq(treeParentChild.treeId, treeId)),
+      exec.delete(treeCouple).where(eq(treeCouple.treeId, treeId)),
+      exec.delete(treePerson).where(eq(treePerson.treeId, treeId)),
+      ...(personRows.length ? [exec.insert(treePerson).values(personRows)] : []),
+      ...(coupleRows.length ? [exec.insert(treeCouple).values(coupleRows)] : []),
+      ...(pcRows.length ? [exec.insert(treeParentChild).values(pcRows)] : []),
+      exec
+        .update(trees)
+        .set({
+          version: sql`${trees.version} + 1`,
+          collapsed: snapshot.collapsed ?? [],
+          updatedAt: new Date(),
+        })
+        .where(eq(trees.id, treeId)),
+    ];
+
+  if (isNeonHttp(db)) {
+    const stmts = build(db);
+    await db.batch(
+      stmts as unknown as [(typeof stmts)[number], ...(typeof stmts)[number][]],
+    );
+  } else {
+    await db.transaction(async (tx) => {
+      for (const s of build(tx)) await s;
     });
-    return;
   }
 
-  const updateTree = db
-    .update(trees)
-    .set({ data, updatedAt: new Date() })
-    .where(eq(trees.id, id));
-
-  if (!rows) {
-    await updateTree;
-    return;
-  }
-  const deleteIndex = db.delete(peopleIndex).where(eq(peopleIndex.treeId, id));
-  if (rows.length === 0) {
-    await db.batch([updateTree, deleteIndex]);
-    return;
-  }
-  const insertIndex = db.insert(peopleIndex).values(rows);
-  await db.batch([updateTree, deleteIndex, insertIndex]);
+  return { version: current.version + 1 };
 }
 
 // ── Membership management (owner only) ───────────────────────────────────────
@@ -412,23 +680,40 @@ export async function inviteMember(
     .limit(1);
 
   const token = nanoid(32);
+  const tokenHash = hashToken(token);
   const expiresAt = new Date(Date.now() + INVITE_EXPIRY_MS);
 
   if (existingInvite) {
     await db
       .update(treeInvitation)
-      .set({ token, role, expiresAt })
+      .set({ tokenHash, role, expiresAt })
       .where(eq(treeInvitation.id, existingInvite.id));
   } else {
-    await db.insert(treeInvitation).values({
-      id: nanoid(),
-      treeId,
-      email: normalized,
-      role,
-      token,
-      invitedById: session.user.id,
-      expiresAt,
-    });
+    try {
+      await db.insert(treeInvitation).values({
+        id: nanoid(),
+        treeId,
+        email: normalized,
+        role,
+        tokenHash,
+        invitedById: session.user.id,
+        expiresAt,
+      });
+    } catch (e) {
+      // A concurrent invite for the same (tree, email) lost the race to the
+      // partial unique index; refresh the now-existing pending row instead.
+      if (!isPendingInviteUniqueViolation(e)) throw e;
+      await db
+        .update(treeInvitation)
+        .set({ tokenHash, role, expiresAt })
+        .where(
+          and(
+            eq(treeInvitation.treeId, treeId),
+            eq(treeInvitation.email, normalized),
+            isNull(treeInvitation.acceptedAt),
+          ),
+        );
+    }
   }
 
   const base = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
@@ -488,7 +773,7 @@ export async function acceptInvitation(
     .from(treeInvitation)
     .where(
       and(
-        eq(treeInvitation.token, token),
+        eq(treeInvitation.tokenHash, hashToken(token)),
         isNull(treeInvitation.acceptedAt),
         gt(treeInvitation.expiresAt, new Date()),
       ),
@@ -511,30 +796,42 @@ export async function acceptInvitation(
   if (!tree) return { error: "The family tree no longer exists." };
   if (tree.ownerId === session.user.id) return { error: "You already own this tree." };
 
-  const [existing] = await db
-    .select({ id: treeMembership.id })
-    .from(treeMembership)
-    .where(
-      and(
-        eq(treeMembership.treeId, inv.treeId),
-        eq(treeMembership.userId, session.user.id),
-      ),
-    )
-    .limit(1);
-
-  if (!existing) {
-    await db.insert(treeMembership).values({
+  // Membership insert and invite-consume commit together. `onConflictDoNothing`
+  // makes the insert idempotent (already a member), removing the read-then-write
+  // window the old two-step version had.
+  const insertMembership = db
+    .insert(treeMembership)
+    .values({
       id: nanoid(),
       treeId: inv.treeId,
       userId: session.user.id,
       role: inv.role,
-    });
-  }
-
-  await db
+    })
+    .onConflictDoNothing();
+  const consumeInvite = db
     .update(treeInvitation)
     .set({ acceptedAt: new Date() })
     .where(eq(treeInvitation.id, inv.id));
+
+  if (isNeonHttp(db)) {
+    await db.batch([insertMembership, consumeInvite]);
+  } else {
+    await db.transaction(async (tx) => {
+      await tx
+        .insert(treeMembership)
+        .values({
+          id: nanoid(),
+          treeId: inv.treeId,
+          userId: session.user.id,
+          role: inv.role,
+        })
+        .onConflictDoNothing();
+      await tx
+        .update(treeInvitation)
+        .set({ acceptedAt: new Date() })
+        .where(eq(treeInvitation.id, inv.id));
+    });
+  }
 
   return { treeId: inv.treeId };
 }

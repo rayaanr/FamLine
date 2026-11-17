@@ -1,7 +1,13 @@
 import { redirect } from "next/navigation";
 import { and, desc, eq, isNotNull, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { trees, treeMembership, peopleIndex } from "@/db/schema";
+import {
+  trees,
+  treeMembership,
+  treePerson,
+  treeCouple,
+  treeParentChild,
+} from "@/db/schema";
 import { getSession } from "@/lib/auth-server";
 import {
   canEditTree,
@@ -10,7 +16,15 @@ import {
   isSuperAdmin,
   type TreeRole,
 } from "@/lib/permissions";
-import type { NamedFamilyTree } from "@/features/family-tree/types";
+import type {
+  NamedFamilyTree,
+  Person,
+  Couple,
+  ParentChild,
+  Gender,
+  CoupleStatus,
+  ParentChildType,
+} from "@/features/family-tree/types";
 
 type TreeRow = typeof trees.$inferSelect;
 type Session = NonNullable<Awaited<ReturnType<typeof getSession>>>;
@@ -25,6 +39,8 @@ const treeProjection = {
   slug: trees.slug,
   name: trees.name,
   ownerId: trees.ownerId,
+  version: trees.version,
+  collapsed: trees.collapsed,
   settings: trees.settings,
   createdAt: trees.createdAt,
   updatedAt: trees.updatedAt,
@@ -35,20 +51,100 @@ type TreeProjected = {
   slug: string;
   name: string;
   ownerId: string;
+  version: number;
+  collapsed: string[];
   settings: TreeRow["settings"];
   createdAt: Date;
   updatedAt: Date;
 };
 
-/** Map a DB row to the client-facing `NamedFamilyTree` (Dates → ISO strings). */
-export function toNamedTree(row: TreeRow): NamedFamilyTree {
+/**
+ * Assemble the client-facing `NamedFamilyTree` from a tree's metadata row plus
+ * its relational people / couples / parent-child rows. Replaces the old
+ * `toNamedTree` (which spread a single JSONB blob). Loads the three entity
+ * tables in parallel and folds them into the `Record<id, T>` maps the canvas
+ * and layout expect — client types are unchanged.
+ */
+export async function getTreeGraph(meta: TreeProjected): Promise<NamedFamilyTree> {
+  const [people, couples, parentChildren] = await Promise.all([
+    db
+      .select()
+      .from(treePerson)
+      .where(eq(treePerson.treeId, meta.id)),
+    db
+      .select()
+      .from(treeCouple)
+      .where(eq(treeCouple.treeId, meta.id)),
+    db
+      .select()
+      .from(treeParentChild)
+      .where(eq(treeParentChild.treeId, meta.id)),
+  ]);
+
+  const peopleMap: Record<string, Person> = {};
+  for (const p of people) {
+    peopleMap[p.id] = {
+      id: p.id,
+      firstName: p.firstName,
+      lastName: p.lastName,
+      birthDate: p.birthDate ?? undefined,
+      birthPlace: p.birthPlace ?? undefined,
+      deathDate: p.deathDate ?? undefined,
+      isDeceased: p.isDeceased,
+      gender: p.gender as Gender,
+      notes: p.notes ?? undefined,
+      isPlaceholder: p.isPlaceholder || undefined,
+    };
+  }
+
+  const couplesMap: Record<string, Couple> = {};
+  for (const c of couples) {
+    couplesMap[c.id] = {
+      id: c.id,
+      partner1Id: c.partner1Id,
+      partner2Id: c.partner2Id,
+      status: c.status as CoupleStatus,
+      startDate: c.startDate ?? undefined,
+      endDate: c.endDate ?? undefined,
+      marriagePlace: c.marriagePlace ?? undefined,
+    };
+  }
+
+  const pcMap: Record<string, ParentChild> = {};
+  for (const pc of parentChildren) {
+    pcMap[pc.id] = {
+      id: pc.id,
+      childId: pc.childId,
+      coupleId: pc.coupleId ?? undefined,
+      singleParentId: pc.singleParentId ?? undefined,
+      type: pc.type as ParentChildType,
+    };
+  }
+
   return {
-    id: row.id,
-    name: row.name,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-    ...row.data,
+    id: meta.id,
+    name: meta.name,
+    version: meta.version,
+    createdAt: meta.createdAt.toISOString(),
+    updatedAt: meta.updatedAt.toISOString(),
+    people: peopleMap,
+    couples: couplesMap,
+    parentChildren: pcMap,
+    collapsed: meta.collapsed ?? [],
   };
+}
+
+/** Fetch a tree's metadata + assembled graph by canonical id (no access check). */
+export async function getTreeGraphById(
+  treeId: string,
+): Promise<NamedFamilyTree | null> {
+  const [meta] = await db
+    .select(treeProjection)
+    .from(trees)
+    .where(eq(trees.id, treeId))
+    .limit(1);
+  if (!meta) return null;
+  return getTreeGraph(meta);
 }
 
 /**
@@ -106,11 +202,11 @@ export interface TreeSummary {
 // super_admin).
 const peopleCounts = db
   .select({
-    treeId: peopleIndex.treeId,
+    treeId: treePerson.treeId,
     count: sql<number>`count(*)`.mapWith(Number).as("count"),
   })
-  .from(peopleIndex)
-  .groupBy(peopleIndex.treeId)
+  .from(treePerson)
+  .groupBy(treePerson.treeId)
   .as("people_counts");
 
 /**
@@ -185,25 +281,21 @@ export async function listAccessibleTrees(): Promise<TreeSummary[]> {
 }
 
 // ── Route guards ─────────────────────────────────────────────────────────────
-// Overloaded so the `data` JSONB blob is only in scope (and only fetched) when
-// a caller explicitly asks for it via `withData: true` — every guard except
-// the tree page's render goes through the lightweight projection.
+// Always loads the lightweight metadata projection (never the legacy `data`
+// blob). Callers that need the full graph resolve access here, then assemble it
+// from the relational tables via `getTreeGraph`.
 async function loadTreeOrRedirect(
   idOrSlug: string,
-  withData: true,
-): Promise<{ tree: TreeRow; role: TreeRole | null; session: Session }>;
-async function loadTreeOrRedirect(
-  idOrSlug: string,
-  withData?: false,
-): Promise<{ tree: TreeProjected; role: TreeRole | null; session: Session }>;
-async function loadTreeOrRedirect(idOrSlug: string, withData = false) {
+): Promise<{ tree: TreeProjected; role: TreeRole | null; session: Session }> {
   const session = await getSession();
   if (!session) redirect("/login");
   // The URL param may be either the canonical id or the human-readable slug.
   const whereClause = or(eq(trees.id, idOrSlug), eq(trees.slug, idOrSlug));
-  const [tree] = withData
-    ? await db.select().from(trees).where(whereClause).limit(1)
-    : await db.select(treeProjection).from(trees).where(whereClause).limit(1);
+  const [tree] = await db
+    .select(treeProjection)
+    .from(trees)
+    .where(whereClause)
+    .limit(1);
   if (!tree) redirect("/tree");
 
   let membershipRole: string | null = null;
@@ -232,14 +324,15 @@ export async function requireTreeView(treeId: string) {
 }
 
 /**
- * Gate on view access, fetching the full row (including the `data` graph).
+ * Gate on view access and assemble the full graph from the relational tables.
  * Only the tree page's Server Component needs this — everything else should
  * use `requireTreeView`.
  */
-export async function requireTreeViewWithData(treeId: string) {
-  const { tree, role, session } = await loadTreeOrRedirect(treeId, true);
+export async function requireTreeViewWithGraph(treeId: string) {
+  const { tree, role, session } = await loadTreeOrRedirect(treeId);
   if (!canViewTree(role)) redirect("/tree");
-  return { tree, role: role as TreeRole, session };
+  const graph = await getTreeGraph(tree);
+  return { tree, graph, role: role as TreeRole, session };
 }
 
 /** Gate on edit access (editor+). */
